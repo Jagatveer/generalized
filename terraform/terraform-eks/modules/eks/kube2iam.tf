@@ -8,5 +8,6 @@ data "template_file" "kube2iam" {
 }
 resource "local_file" "kube2iam" {
   content  = "${data.template_file.kube2iam.rendered}"
-  filename = "dist/1.kube2iam_${aws_eks_cluster.k8s.name}-${uuid()}.yaml"
+  filename = "dist/1.kube2iam_${aws_eks_cluster.k8s.name}.yaml"
+  depends_on = ["null_resource.clean_dist"]
 }

@@ -77,7 +77,8 @@ data "template_file" "external_dns_public" {
 }
 resource "local_file" "external_dns_public" {
   content  = "${data.template_file.external_dns_public.rendered}"
-  filename = "dist/external_dns_public_${aws_eks_cluster.k8s.name}-${uuid()}.yaml"
+  filename = "dist/external_dns_public_${aws_eks_cluster.k8s.name}.yaml"
+  depends_on = ["null_resource.clean_dist"]
 }
 
 data "template_file" "external_dns_private" {
@@ -95,5 +96,6 @@ data "template_file" "external_dns_private" {
 resource "local_file" "external_dns_private" {
   count    = "${var.private_domain_name != "" ? 1 : 0}"
   content  = "${data.template_file.external_dns_private.rendered}"
-  filename = "dist/external_dns_private_${aws_eks_cluster.k8s.name}-${uuid()}.yaml"
+  filename = "dist/external_dns_private_${aws_eks_cluster.k8s.name}.yaml"
+  depends_on = ["null_resource.clean_dist"]
 }

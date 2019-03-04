@@ -7,5 +7,6 @@ data "template_file" "metrics_server" {
 }
 resource "local_file" "metrics_server" {
   content  = "${data.template_file.metrics_server.rendered}"
-  filename = "dist/metrics-server_${aws_eks_cluster.k8s.name}-${uuid()}.yaml"
+  filename = "dist/metrics-server_${aws_eks_cluster.k8s.name}.yaml"
+  depends_on = ["null_resource.clean_dist"]
 }

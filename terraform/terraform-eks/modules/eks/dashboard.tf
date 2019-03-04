@@ -7,5 +7,6 @@ data "template_file" "dashboard" {
 }
 resource "local_file" "dashboard" {
   content  = "${data.template_file.dashboard.rendered}"
-  filename = "dist/dashboard_${aws_eks_cluster.k8s.name}-${uuid()}.yaml"
+  filename = "dist/dashboard_${aws_eks_cluster.k8s.name}.yaml"
+  depends_on = ["null_resource.clean_dist"]
 }

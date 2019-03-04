@@ -92,3 +92,12 @@ resource "aws_eks_cluster" "k8s" {
     "aws_iam_role_policy_attachment.eks-ClusterPolicies",
   ]
 }
+
+resource "null_resource" "clean_dist" {
+  provisioner "local-exec" {
+    command = "rm -R dist/ || ls"
+  }
+  triggers {
+    build_number = "${timestamp()}"
+  }
+}

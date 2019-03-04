@@ -64,6 +64,7 @@ data "template_file" "cluster_autoscaler" {
 }
 resource "local_file" "cluster_autoscaler" {
   content  = "${data.template_file.cluster_autoscaler.rendered}"
-  filename = "dist/cluster_autoscaler_${aws_eks_cluster.k8s.name}-${uuid()}.yaml"
+  filename = "dist/cluster_autoscaler_${aws_eks_cluster.k8s.name}.yaml"
+  depends_on = ["null_resource.clean_dist"]
 }
 
