@@ -1,0 +1,399 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "ECS Cluster"
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "AWS Quick Start Configuration"
+        Parameters:
+          - QSS3BucketName
+          - QSS3KeyPrefix
+      - Label:
+          default: "Configuration options"
+        Parameters:
+          - ClusterName
+          - DesiredCapacity
+          - MaxBatchSize
+          - MaxSize
+          - PauseTime
+          - SpotPrice
+          - InstanceType
+      - Label:
+          default: "Newtwork"
+        Parameters:
+          - SubnetIds
+          - VpcId
+      - Label:
+          default: "Security Configuration"
+        Parameters:
+          - KeyPair
+
+  ParameterLabels:
+    ClusterName:
+      default: "Cluster Name"
+    KeyPairName:
+      default: "Key Pair Name"
+    DesiredCapacity:
+      default: "Desired Capacity"
+    MaxBatchSize:
+      default: "Max replacement size"
+    MaxSize:
+      default: "Max cluster size"
+    PauseTime:
+      default: "Update pause time"
+    SpotPrice:
+      default: "Spot price"
+    SubnetIds:
+      default: "Subnets for provisioning"
+    QSS3BucketName:
+      default: "Quick Start S3 Bucket Name"
+    QSS3KeyPrefix:
+      default: "Quick Start S3 Key Prefix"
+    VpcId:
+      default: "VPC CIDR"
+    InstanceType:
+      default: "ECS instance type"
+
+
+Parameters:
+  QSS3BucketName:
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
+    Default: "client-tests"
+    Type: String
+    ConstraintDescription: "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
+    Description: "S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
+  QSS3KeyPrefix:
+    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    Default: "client-infrastructure"
+    Type: String
+    ConstraintDescription: "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/)."
+    Description: "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with a hyphen (-)."
+  ClusterName:
+    Type: String
+  DesiredCapacity:
+    Type: String
+    Default: 1
+  InstanceType:
+    Description: Intance type using in the cluster
+    Type: String
+    Default: t2.medium
+  KeyPair:
+    Description: Amazon EC2 Key Pair
+    Type: AWS::EC2::KeyPair::KeyName
+  MaxBatchSize:
+    Description: Max replacement size on updates
+    Type: String
+    Default: 2
+  MaxSize:
+    Description: Max cluster size.
+    Type: String
+    Default: 5
+  MinInstancesInService:
+    Description: Min cluster size on updates
+    Type: String
+    Default: 2
+  MinSize:
+    Description: Min cluster size.
+    Type: String
+    Default: 1
+  PauseTime:
+    Description: Pause time on updates.
+    Type: String
+    Default: PT5M
+  SpotPrice:
+    Description: If spot price is 0, then EC2(OnDemand) will be used, otherwise spot instances will be used.
+    Type: Number
+    Default: 0.2000
+    MinValue: 0
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnet-IDs the existing subnets in your VPC where you want to deploy node(s).
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC-ID of your existing Virtual Private Cloud (VPC).
+
+Mappings:
+  AWSRegionToAMI:
+  # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
+    us-east-2:
+      AMI: ami-09a64272e7fe706b6
+    us-east-1:
+      AMI: ami-0b9a214f40c38d5eb
+    us-west-2:
+      AMI: ami-00430184c7bb49914
+    us-west-1:
+      AMI: ami-0e7dd5fe55b87a5fe
+    eu-west-3:
+      AMI: ami-06b685336aa497c15
+    eu-west-2:
+      AMI: ami-0209769f0c963e791
+    eu-west-1:
+      AMI: ami-05b65c0f6a75c1c64
+    eu-central-1:
+      AMI: ami-0bb804e8cd910a664
+    ap-northeast-2:
+      AMI: ami-0d947b1901b27a37c
+    ap-northeast-1:
+      AMI: ami-08681de00a0aae54f
+    ap-southeast-2:
+      AMI: ami-05b48eda7f92aadbe
+    ap-southeast-1:
+      AMI: ami-0a3f70f0255af1d29
+    ca-central-1:
+      AMI: ami-00d1bdbd447b5933a
+    ap-south-1:
+      AMI: ami-0590d0dd683026eab
+    sa-east-1:
+      AMI: ami-01bca91ecf4c1f494
+
+Outputs:
+  EcsCluster:
+    Value: !Ref EcsCluster
+  SecurityGroup:
+    Value: !Ref SecurityGroup
+
+Conditions:
+  SpotPricePresent: !Not [!Equals [!Ref SpotPrice, 0]]
+
+Resources:
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref ClusterName
+
+  EcsInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EcsRole
+
+  EcsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      RoleName: !Sub ${ClusterName}-EcsRole-${AWS::Region}
+      ManagedPolicyArns: [
+        "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
+      ]
+      AssumeRolePolicyDocument: |
+        {
+          "Statement": [{
+            "Action": "sts:AssumeRole",
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "ec2.amazonaws.com"
+            }
+          }]
+        }
+      Policies:
+        - PolicyName: ecs-service
+          PolicyDocument: |
+            {
+              "Statement": [{
+                "Effect": "Allow",
+                "Action": [
+                    "ecs:CreateCluster",
+                    "ecs:DeregisterContainerInstance",
+                    "ecs:DiscoverPollEndpoint",
+                    "ecs:Poll",
+                    "ecs:RegisterContainerInstance",
+                    "ecs:StartTelemetrySession",
+                    "ecs:UpdateContainerInstancesState",
+                    "ecs:Submit*",
+                    "ecr:*",
+                    "logs:CreateLogStream",
+                    "logs:CreateLogGroup",
+                    "logs:DescribeLogStreams",
+                    "logs:PutLogEvents",
+                    "ecr:BatchCheckLayerAvailability",
+                    "ecr:BatchGetImage",
+                    "ecr:GetDownloadUrlForLayer",
+                    "ecr:GetAuthorizationToken",
+                    "sns:Publish",
+                    "cloudformation:*"
+                  ],
+                  "Resource": "*"
+              }]
+            }
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow tcp to client host
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: '-1'
+      Tags:
+        - Key: Name
+          Value: !Sub ${ClusterName}-${AWS::Region}
+
+  EcsAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: !If
+          - SpotPricePresent
+          - 0
+          - !Ref MinInstancesInService
+        MaxBatchSize: !Ref MaxBatchSize
+        PauseTime: !Ref PauseTime
+        WaitOnResourceSignals: false
+    Properties:
+      VPCZoneIdentifier: !Ref SubnetIds
+      LaunchConfigurationName: !Ref EcsLaunchConfiguration
+      MinSize: !Ref MinSize
+      MaxSize: !Ref MaxSize
+      DesiredCapacity: !Ref DesiredCapacity
+      TerminationPolicies:
+        - Default
+      Tags:
+        - Key: Name
+          Value: !Ref ClusterName
+          PropagateAtLaunch: true
+
+  EcsLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !FindInMap [AWSRegionToAMI, !Ref "AWS::Region", AMI]
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyPair
+      SpotPrice: !If
+        - SpotPricePresent
+        - !Ref SpotPrice
+        - !Ref AWS::NoValue
+      AssociatePublicIpAddress: false
+      SecurityGroups:
+        - !Ref SecurityGroup
+      IamInstanceProfile: !Ref EcsInstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: "/dev/xvdcy"
+          Ebs:
+            VolumeSize: 50
+            VolumeType: "gp2"
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          echo ECS_CONTAINER_STOP_TIMEOUT=90s >> /etc/ecs/ecs.config
+          echo ECS_ENGINE_TASK_CLEANUP_WAIT_DURATION=2h >> /etc/ecs/ecs.config
+          echo ECS_LOGLEVEL=info >> /etc/ecs/ecs.config
+
+          yum update -y
+          yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+          yum install -y python-pip
+          pip install awscli
+          yum install -y aws-cfn-bootstrap
+          yum install -y git
+          vgextend docker /dev/xvdcy
+          lvextend -L+100G /dev/docker/docker-pool
+
+          sudo /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EcsLaunchConfiguration
+          sudo /opt/aws/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource EcsAutoScalingGroup
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          files:
+            "/etc/cfn/cfn-hup.conf":
+              mode: 000400
+              owner: root
+              group: root
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+            "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+              mode: 000400
+              owner: root
+              group: root
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.ContainerInstances.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EcsLaunchConfiguration
+                [cfn-auto-reloader-hook1]
+                triggers=post.update
+                path=Resources.ContainerInstances.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource EcsAutoScalingGroup
+          commands:
+            01_add_instance_to_cluster:
+              command: !Sub echo ECS_CLUSTER=${EcsCluster} >> /etc/ecs/ecs.config
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                  - /etc/cfn/cfn-hup.conf
+                  - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+
+  ScaleDownAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !Ref ScaleDownPolicy
+      ComparisonOperator: LessThanOrEqualToThreshold
+      EvaluationPeriods: 3
+      MetricName: MemoryReservation
+      Namespace: AWS/ECS
+      Period: 60
+      Statistic: Average
+      Threshold: 50
+      Unit: Percent
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ClusterName
+
+  ScaleDownPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref EcsAutoScalingGroup
+      EstimatedInstanceWarmup: 300
+      MetricAggregationType: Average
+      PolicyType: StepScaling
+      StepAdjustments:
+        - MetricIntervalUpperBound: 0.0
+          ScalingAdjustment: -1
+
+  ScaleUpMemoryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !Ref ScaleUpPolicyOnDemand
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 1
+      MetricName: MemoryReservation
+      Namespace: AWS/ECS
+      Period: 60
+      Statistic: Average
+      Threshold: 80
+      Unit: Percent
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ClusterName
+
+  ScaleUpPolicyOnDemand:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref EcsAutoScalingGroup
+      EstimatedInstanceWarmup: 300
+      MetricAggregationType: Average
+      PolicyType: StepScaling
+      StepAdjustments:
+        - MetricIntervalLowerBound: 0
+          MetricIntervalUpperBound: 15
+          ScalingAdjustment: 1
+        - MetricIntervalLowerBound: 15
+          ScalingAdjustment: 2

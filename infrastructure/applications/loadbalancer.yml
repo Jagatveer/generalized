@@ -1,0 +1,153 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Application Load Balancer"
+
+Parameters:
+  LoadBalancerName:
+    Type: String
+    Description: "Load Balancer Name"
+  Domain:
+    Type: String
+    Description: "Domain name for DNS (Optional)"
+  Scheme:
+    Type: String
+    Description: "Load Balancer Scheme"
+    Default: ""
+    AllowedValues:
+      - ""
+      - internal
+      - internet-facing
+  Certificate:
+    Type: String
+    Description: "SSL Certificate ARN"
+    Default: ""
+  SubnetIds:
+    Type: CommaDelimitedList
+    Description: "Subnet IDs"
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: "VPC ID"
+
+Outputs:
+  CanonicalHostedZoneID:
+    Description: "Canonical Hosted Zone ID"
+    Value: !GetAtt LoadBalancer.CanonicalHostedZoneID
+  HttpListenerArn:
+    Description: "HTTP Listener ARN"
+    Value: !Ref HttpListener
+  HttpsListenerArn:
+    Description: "HTTPS Listener ARN"
+    Value: !Ref HttpsListener
+    Condition: SslCertificateArnPresent
+  LoadBalancerArn:
+    Description: "Load Balancer ARN"
+    Value: !Ref LoadBalancer
+  LoadBalancerDomain:
+    Description: "Load Balancer Domain"
+    Value: !GetAtt LoadBalancer.DNSName
+  LoadBalancerName:
+    Description: "Load Balancer Name"
+    Value: !GetAtt LoadBalancer.LoadBalancerName
+  SecurityGroupId:
+    Description: "Load Balancer Security Group ID"
+    Value: !Ref SecurityGroup
+  TargetGroupArn:
+    Description: "Target Group ARN"
+    Value: !Ref TargetGroup
+  PrivateDNS:
+    Description: Private DNS hosted zone
+    Value: !Ref PrivateDNS
+
+Conditions:
+  SchemeEmpty: !Equals [!Ref Scheme, ""]
+  SslCertificateArnPresent: !Not [!Equals [!Ref Certificate, ""]]
+
+Resources:
+  PrivateDNS:
+    Type: "AWS::Route53::HostedZone"
+    Properties:
+      HostedZoneConfig:
+        Comment: "Internal Hosted Zone"
+      Name: !Ref Domain
+      VPCs:
+        - VPCId: !Ref VpcId
+          VPCRegion: !Ref "AWS::Region"
+
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+      - LoadBalancer
+      - TargetGroup
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  HttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: SslCertificateArnPresent
+    DependsOn:
+      - LoadBalancer
+      - TargetGroup
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref Certificate
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: SecurityGroup
+    Properties:
+      Name: !Ref LoadBalancerName
+      Scheme: !If
+        - SchemeEmpty
+        - !Ref AWS::NoValue
+        - !Ref Scheme
+      Subnets: !Ref SubnetIds
+      SecurityGroups:
+        - !Ref SecurityGroup
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${LoadBalancerName} security group"
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 20
+      HealthCheckPath: /health_check
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 3
+      Matcher:
+        HttpCode: 200
+      Port: 80
+      Protocol: HTTP
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 60
+        - Key: stickiness.enabled
+          Value: true
+        - Key: stickiness.type
+          Value: lb_cookie
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: 300
+      UnhealthyThresholdCount: 3
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: LoadBalancerName
+          Value: !Ref LoadBalancerName
+        - Key: VpcId
+          Value: !Ref VpcId

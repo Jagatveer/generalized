@@ -1,0 +1,302 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Main template"
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "AWS Quick Start Configuration"
+        Parameters:
+          - QSS3BucketName
+          - QSS3KeyPrefix
+      - Label:
+          default: "Environment settings"
+        Parameters:
+          - StackName
+          - Environment
+      - Label:
+          default: "Network Configuration"
+        Parameters:
+          - AvailabilityZones
+          - NumberOfAZs
+          - VPCCIDR
+          - PrivateSubnet1CIDR
+          - PrivateSubnet2CIDR
+          - PrivateSubnet3CIDR
+          - PublicSubnet1CIDR
+          - PublicSubnet2CIDR
+          - PublicSubnet3CIDR
+      - Label:
+          default: "Security Configuration"
+        Parameters:
+          - KeyPairName
+          - Certificate
+      - Label:
+          default: "Infrastructure"
+        Parameters:
+          - EcsInstanceType
+
+  ParameterLabels:
+    Certificate:
+      default: "Environment"
+    Environment:
+      default: "Environment"
+    StackName:
+      default: "Name for stack"
+    AvailabilityZones:
+      default: "Availability Zones"
+    KeyPairName:
+      default: "Key Pair Name"
+    NumberOfAZs:
+      default: "Number of Availability Zones"
+    PrivateSubnet1CIDR:
+      default: "Private Subnet 1 CIDR"
+    PrivateSubnet2CIDR:
+      default: "Private Subnet 2 CIDR"
+    PrivateSubnet3CIDR:
+      default: "Private Subnet 3 CIDR"
+    PublicSubnet1CIDR:
+      default: "Public Subnet 1 CIDR"
+    PublicSubnet2CIDR:
+      default: "Public Subnet 2 CIDR"
+    PublicSubnet3CIDR:
+      default: "Public Subnet 3 CIDR"
+    QSS3BucketName:
+      default: "Quick Start S3 Bucket Name"
+    QSS3KeyPrefix:
+      default: "Quick Start S3 Key Prefix"
+    VPCCIDR:
+      default: "VPC CIDR"
+    EcsInstanceType:
+      default: "ECS instance type"
+
+Parameters:
+  Certificate:
+    Type: String
+    Description: "Domain certificate ARN (arn:aws:acm:us-east-1:<account_number>:certificate/<ID>)"
+  Environment:
+    Type: String
+    Description: "Environment platform, this parameter will be used to name the resources ."
+    Default: development
+    AllowedValues:
+      - production
+      - staging
+      - development
+  StackName:
+    Type: String
+    Default: client
+    Description: "This name will be used to named the resources"
+  PrivateSubnet2CIDR:
+    AllowedPattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$"
+    Default: 10.0.32.0/19
+    Type: String
+    ConstraintDescription: "CIDR block parameter must be in the form x.x.x.x/16-28"
+    Description: "CIDR block for private subnet 2 located in Availability Zone 2."
+  PrivateSubnet3CIDR:
+    AllowedPattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$"
+    Default: 10.0.64.0/19
+    Type: String
+    ConstraintDescription: "CIDR block parameter must be in the form x.x.x.x/16-28"
+    Description: "CIDR block for private subnet 3 located in Availability Zone 3."
+  QSS3BucketName:
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
+    Default: "client-tests"
+    Type: String
+    ConstraintDescription: "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
+    Description: "S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
+  PublicSubnet2CIDR:
+    AllowedPattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$"
+    Default: 10.0.144.0/20
+    Type: String
+    ConstraintDescription: "CIDR block parameter must be in the form x.x.x.x/16-28"
+    Description: "CIDR Block for the public DMZ subnet 2 located in Availability Zone 2"
+  PublicSubnet3CIDR:
+    AllowedPattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$"
+    Default: 10.0.160.0/20
+    Type: String
+    ConstraintDescription: "CIDR block parameter must be in the form x.x.x.x/16-28"
+    Description: "CIDR Block for the public DMZ subnet 3 located in Availability Zone 3"
+  KeyPairName:
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Default: client-us-east-1
+    Description: "Public/private key pairs allow you to securely connect to your instance after it launches"
+  PublicSubnet1CIDR:
+    AllowedPattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$"
+    Default: 10.0.128.0/20
+    Type: String
+    ConstraintDescription: "CIDR block parameter must be in the form x.x.x.x/16-28"
+    Description: "CIDR Block for the public DMZ subnet 1 located in Availability Zone 1"
+  PrivateSubnet1CIDR:
+    AllowedPattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$"
+    Default: 10.0.0.0/19
+    Type: String
+    ConstraintDescription: "CIDR block parameter must be in the form x.x.x.x/16-28"
+    Description: "CIDR block for private subnet 1 located in Availability Zone 1."
+  VPCCIDR:
+    AllowedPattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$"
+    Default: 10.0.0.0/16
+    Type: String
+    ConstraintDescription: "CIDR block parameter must be in the form x.x.x.x/16-28"
+    Description: "CIDR Block for the VPC"
+  QSS3KeyPrefix:
+    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    Default: "client-infrastructure"
+    Type: String
+    ConstraintDescription: "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/)."
+    Description: "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with a hyphen (-)."
+  AvailabilityZones:
+    Type: "List<AWS::EC2::AvailabilityZone::Name>"
+    Description: "List of Availability Zones to use for the subnets in the VPC. Note: The logical order is preserved. 1 or 3 AZs are used for this deployment."
+  NumberOfAZs:
+    Default: 3
+    AllowedValues:
+      - 2
+      - 3
+    Description: "Number of Availability Zones to use in the VPC. This must match your selections in the list of Availability Zones parameter."
+    Type: String
+  EcsInstanceType:
+    Description: "ECS instance type."
+    Type: String
+    Default: t2.medium
+    AllowedValues:
+      - t2.medium
+      - t2.medium
+      - t2.large
+      - m4.large
+      - m4.xlarge
+      - c4.large
+      - c4.xlarge
+
+Resources:
+  VPCStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/network/vpc.yml"
+      Parameters:
+        AvailabilityZones: !Join [",", !Ref AvailabilityZones]
+        NumberOfAZs: !Ref NumberOfAZs
+        PrivateSubnet1ACIDR: !Ref PrivateSubnet1CIDR
+        PrivateSubnet2ACIDR: !Ref PrivateSubnet2CIDR
+        PrivateSubnet3ACIDR: !Ref PrivateSubnet3CIDR
+        PublicSubnet1CIDR: !Ref PublicSubnet1CIDR
+        PublicSubnet2CIDR: !Ref PublicSubnet2CIDR
+        PublicSubnet3CIDR: !Ref PublicSubnet3CIDR
+        VPCCIDR: !Ref VPCCIDR
+        StackName: !Ref StackName
+        Environment: !Ref Environment
+      Tags:
+        - Key: StackName
+          Value: !Sub ${StackName}-${Environment}
+
+  EcsStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - VPCStack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/compute/ecs-cluster.yml"
+      Parameters:
+        ClusterName: !Sub ${StackName}-${Environment}
+        InstanceType: !Ref EcsInstanceType
+        QSS3BucketName: !Ref QSS3BucketName
+        QSS3KeyPrefix: !Ref QSS3KeyPrefix
+        KeyPair: !Ref KeyPairName
+        SubnetIds: !Join [ ",", [!GetAtt [VPCStack, Outputs.PrivateSubnet1AID], !GetAtt [VPCStack, Outputs.PrivateSubnet2AID], !GetAtt [VPCStack, Outputs.PrivateSubnet3AID]]]
+        VpcId: !GetAtt VPCStack.Outputs.VPCID
+      Tags:
+        - Key: StackName
+          Value: !Sub ${StackName}-${Environment}
+
+  PublicLoadBalancer:
+    DependsOn:
+      - EcsStack
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/applications/loadbalancer.yml"
+      Parameters:
+        LoadBalancerName: !Sub ${StackName}-${Environment}-public
+        Scheme: internet-facing # internal or internet-facing
+        Domain: client.public # Always internal, public DNS are handle diferent
+        Certificate: !Ref Certificate
+        SubnetIds: !Join [ ",", [!GetAtt [VPCStack, Outputs.PrivateSubnet1AID], !GetAtt [VPCStack, Outputs.PrivateSubnet2AID], !GetAtt [VPCStack, Outputs.PrivateSubnet3AID]]]
+        VpcId: !GetAtt VPCStack.Outputs.VPCID
+      Tags:
+        - Key: StackName
+          Value: !Sub ${StackName}-${Environment}
+        - Key: LoadBalancer
+          Value: Public
+
+  PrivateLoadBalancer:
+    DependsOn:
+      - EcsStack
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/applications/loadbalancer.yml"
+      Parameters:
+        LoadBalancerName: !Sub ${StackName}-${Environment}-private
+        Scheme: internal # internal or internet-facing
+        Domain: client.internal # Always internal, public DNS are handle diferent
+        Certificate: !Ref Certificate
+        SubnetIds: !Join [ ",", [!GetAtt [VPCStack, Outputs.PrivateSubnet1AID], !GetAtt [VPCStack, Outputs.PrivateSubnet2AID], !GetAtt [VPCStack, Outputs.PrivateSubnet3AID]]]
+        VpcId: !GetAtt VPCStack.Outputs.VPCID
+      Tags:
+        - Key: StackName
+          Value: !Sub ${StackName}-${Environment}
+        - Key: LoadBalancer
+          Value: Private
+
+  AccountManagement:
+    DependsOn:
+      - PublicLoadBalancer
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/applications/services.yml"
+      Parameters:
+        ServiceName: "account-mgmt" # This name must match the 'services' template file YAML
+        Environment: !Ref Environment
+        DesiredCount: 0
+        Priority: 1 # LoadBalancer Priority, needs to be unique on the LB (Listener Rule Priority)
+        Subdomain: mgmt # Subdmain for listerner rule
+        StackName: !Ref StackName
+        QSS3BucketName: !Ref QSS3BucketName
+        QSS3KeyPrefix: !Ref QSS3KeyPrefix
+        Cluster: !GetAtt EcsStack.Outputs.EcsCluster
+        ContainerPort: 7080
+        VpcId: !GetAtt VPCStack.Outputs.VPCID
+        PrivateDNS: !GetAtt PublicLoadBalancer.Outputs.PrivateDNS
+        LoadBalancerArn: !GetAtt PublicLoadBalancer.Outputs.LoadBalancerArn
+        LoadBalancerHttpListenerArn: !GetAtt PublicLoadBalancer.Outputs.HttpListenerArn
+        LoadBalancerHttpsListenerArn: !GetAtt PublicLoadBalancer.Outputs.HttpsListenerArn
+        LoadBalancerName: !GetAtt PublicLoadBalancer.Outputs.LoadBalancerName
+        CanonicalHostedZoneID: !GetAtt PublicLoadBalancer.Outputs.CanonicalHostedZoneID
+        LoadBalancerDomain: !GetAtt PublicLoadBalancer.Outputs.LoadBalancerDomain
+      Tags:
+        - Key: StackName
+          Value: !Sub ${StackName}-${Environment}
+
+  BWMRestAPI:
+    DependsOn:
+      - PrivateLoadBalancer
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/applications/services.yml"
+      Parameters:
+        ServiceName: "bwm-rest-api" # This name must match the 'services' template file YAML
+        Environment: !Ref Environment
+        DesiredCount: 0
+        Priority: 1 # LoadBalancer Priority, needs to be unique on the LB (Listener Rule Priority)
+        Subdomain: bwm # Subdmain for listerner rule
+        StackName: !Ref StackName
+        QSS3BucketName: !Ref QSS3BucketName
+        QSS3KeyPrefix: !Ref QSS3KeyPrefix
+        Cluster: !GetAtt EcsStack.Outputs.EcsCluster
+        ContainerPort: 17080
+        VpcId: !GetAtt VPCStack.Outputs.VPCID
+        PrivateDNS: !GetAtt PrivateLoadBalancer.Outputs.PrivateDNS
+        LoadBalancerArn: !GetAtt PrivateLoadBalancer.Outputs.LoadBalancerArn
+        LoadBalancerHttpListenerArn: !GetAtt PrivateLoadBalancer.Outputs.HttpListenerArn
+        LoadBalancerHttpsListenerArn: !GetAtt PrivateLoadBalancer.Outputs.HttpsListenerArn
+        LoadBalancerName: !GetAtt PrivateLoadBalancer.Outputs.LoadBalancerName
+        CanonicalHostedZoneID: !GetAtt PrivateLoadBalancer.Outputs.CanonicalHostedZoneID
+        LoadBalancerDomain: !GetAtt PrivateLoadBalancer.Outputs.LoadBalancerDomain
+      Tags:
+        - Key: StackName
+          Value: !Sub ${StackName}-${Environment}

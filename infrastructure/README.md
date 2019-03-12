@@ -1,17 +1,9 @@
-# Generalized infrastructure CFN templates.
-# Full stack infrastructure:
-
+# client infrastructure
 
 * [Nested stacks](#nested)
 * [Naming & Location](#location)
 * [VPC](#vpc)
-* [ALB](#applications)
-* [Listener](#applications)
-* [Service](#applications)
-* [RDS](#database)
-* [ECS](#compute)
-
-
+* [Security](#security)
 
 ## Nested stacks
 Nested stacks are stacks created as part of other stacks. You create a nested stack within another stack by using the AWS::CloudFormation::Stack resource.
@@ -24,7 +16,7 @@ Nested stacks can themselves contain other nested stacks, resulting in a hierarc
 * For stack B, stack A is both the parent stack, as well as the root stack.
 * For stack D, stack C is the parent stack; while for stack C, stack B is the parent stack.
 
-
+![Main stack format](images/nested-stacks.png)
 
 Using nested stacks to declare common components is considered a best practice.
 
@@ -37,7 +29,9 @@ Complexity may arise form this format, but it helps preserve the structure and u
 
 ## Location
 * **Stack Name**: Name provided to the stack.
-* **TemplateBucket**: S3 bucket name and subfolders containing the tempalates for the nested stack
+* **Environment**: Environment (development, staging, production).
+* **QSS3BucketName**: Bucket name holding the templates.
+* **QSS3KeyPrefix**: Folder name holding the templates.
 
 ## VPC
 * **AvailabilityZones**: Specific availability zones to use.
@@ -56,3 +50,5 @@ Complexity may arise form this format, but it helps preserve the structure and u
 
 ## Infrastructure
 * **EcsInstanceType**: EC2 instance type for ECS cluster.
+
+![Main stack format](images/mainstack.png)

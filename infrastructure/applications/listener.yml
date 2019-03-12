@@ -1,0 +1,180 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Load Balancer Listener Rules"
+
+Parameters:
+  CreateHttpListener:
+    Type: String
+    Description: "Create HTTP Listener"
+
+  ContainerPort:
+    Type: Number
+    Description: "Container Port"
+
+  HealthCheckHttpCode:
+    Type: String
+    Description: "Health Check HTTP Code"
+    Default: "200-499"
+
+  HealthCheckPath:
+    Type: String
+    Description: "Health Check Path"
+    Default: "/"
+
+  HostPattern:
+    Type: String
+    Description: "Host Pattern"
+
+  HttpListenerArn:
+    Type: String
+    Description: "HTTP Listener ARN"
+
+  HttpsListenerArn:
+    Type: String
+    Description: "HTTPS Listener ARN"
+
+  LoadBalancerName:
+    Type: String
+    Description: "Load Balancer Name"
+
+  PathPattern:
+    Type: String
+    Description: "Path Pattern"
+    Default: "*"
+
+  Priority:
+    Type: Number
+    Description: "Listener Rule Priority"
+    Default: 0
+    MinValue: 0
+    MaxValue: 999
+
+  ServiceName:
+    Type: String
+    Description: "Service Name"
+
+  StackName:
+    Type: String
+    Description: "Stack Name"
+
+  TargetGroupArn:
+    Type: String
+    Description: "Target Group ARN"
+    Default: ""
+
+  TargetGroupName:
+    Type: String
+    Description: "Target Group Name"
+    Default: ""
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: "VPC ID"
+
+Outputs:
+  HealthCheckPath:
+    Description: "Health Check Path"
+    Value: !Ref HealthCheckPath
+
+  HttpListenerRuleArn:
+    Description: "HTTP Listener Rule ARN"
+    Value: !If
+      - CreateHttpListener
+      - !Ref HttpListenerRule
+      - ""
+
+  HttpsListenerRuleArn:
+    Description: "HTTPS Listener Rule ARN"
+    Value: !Ref HttpsListenerRule
+
+  TargetGroupArn:
+    Description: "Target Group ARN"
+    Value: !If
+      - TargetGroupArnEmpty
+      - !Ref TargetGroup
+      - !Ref TargetGroupArn
+
+  TargetGroupName:
+    Description: "Target Group Name"
+    Value: !Ref TargetGroupName
+
+Conditions:
+  CreateHttpListener: !Equals [!Ref CreateHttpListener, true]
+  PriorityEmpty: !Equals [!Ref Priority, 0]
+  TargetGroupArnEmpty: !Equals [!Ref TargetGroupArn, ""]
+
+Resources:
+  HttpListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: CreateHttpListener
+    Properties:
+      ListenerArn: !Ref HttpListenerArn
+      Priority: !Ref Priority
+      Actions:
+        - TargetGroupArn: !If
+            - TargetGroupArnEmpty
+            - !Ref TargetGroup
+            - !Ref TargetGroupArn
+          Type: forward
+      Conditions:
+        - Field: host-header
+          Values:
+            - !Ref HostPattern
+        - Field: path-pattern
+          Values:
+            - !Ref PathPattern
+
+  HttpsListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpsListenerArn
+      Priority: !Ref Priority
+      Actions:
+        - TargetGroupArn: !If
+            - TargetGroupArnEmpty
+            - !Ref TargetGroup
+            - !Ref TargetGroupArn
+          Type: forward
+      Conditions:
+        - Field: host-header
+          Values:
+            - !Ref HostPattern
+        - Field: path-pattern
+          Values:
+            - !Ref PathPattern
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: TargetGroupArnEmpty
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: !Ref HealthCheckPath
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 29
+      HealthyThresholdCount: 2
+      Matcher:
+        HttpCode: !Ref HealthCheckHttpCode
+      Name: !Ref TargetGroupName # 32 character limit
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 60
+        - Key: stickiness.enabled
+          Value: true
+        - Key: stickiness.type
+          Value: lb_cookie
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: 300
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: ContainerPort
+          Value: !Ref ContainerPort
+        - Key: ServiceName
+          Value: !Ref ServiceName
+        - Key: StackName
+          Value: !Ref StackName
+        - Key: TargetGroupName
+          Value: !Ref TargetGroupName
+        - Key: VpcId
+          Value: !Ref VpcId

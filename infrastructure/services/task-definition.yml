@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Task definition (Containers)'
+
+Parameters:
+  ServiceName:
+    Type: String
+    Description: Name of the service
+  StackName:
+    Type: String
+    Description: For naming (stack name)
+  Environment:
+    Type: String
+    Description: For naming (development, staging, production)
+  ContainerPort:
+    Type: String
+    Description: Port where the container is listening to.
+  ConfigBucket:
+    Type: String
+    Description: Configuration bucket.
+
+Outputs:
+  TaskDefinition:
+    Value: !Ref TaskDefinition
+
+Resources:
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ServiceName}-${Environment}
+      Path: /
+      AssumeRolePolicyDocument: |
+          {
+              "Version": "2012-10-17",
+              "Statement": [
+                  {
+                      "Effect": "Allow",
+                      "Principal": {
+                          "Service": "ecs-tasks.amazonaws.com"
+                      },
+                      "Action": "sts:AssumeRole"
+                  }
+              ]
+          }
+      Policies:
+        - PolicyName: !Sub ecs-service-file-${StackName}
+          PolicyDocument: !Sub |
+              {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                      {
+                          "Sid": "VisualEditor0",
+                          "Effect": "Allow",
+                          "Action": [
+                              "s3:*",
+                              "logs:CreateLogStream",
+                              "logs:CreateLogGroup",
+                              "logs:DescribeLogStreams",
+                              "logs:PutLogEvents",
+                              "sns:Publish"
+                          ],
+                          "Resource": [
+                              "*"
+                          ]
+                      }
+                  ]
+              }
+
+  ECSLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ${StackName}-${ServiceName}
+      RetentionInDays: 7
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      Family: !Sub ${ServiceName}-${Environment}
+      ContainerDefinitions:
+        - Name: !Sub ${ServiceName}-${Environment}
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/${ServiceName}-${Environment}
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: !Sub ${StackName}-${ServiceName}
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: !Ref Environment
+          MemoryReservation: 512
+          Environment:
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: CONFIG_BUCKET_NAME
+              Value: !Ref ConfigBucket
+            - Name: PORT
+              Value: !Ref ContainerPort

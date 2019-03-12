@@ -1,0 +1,143 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Public Services"
+
+Parameters:
+  Environment:
+    Type: String
+    Description: "Environment platform, this parameter will be used to name the resources ."
+    Default: development
+    AllowedValues:
+      - production
+      - staging
+      - development
+  DesiredCount:
+    Type: Number
+    Default: 0
+    Description: "Desired count of containers."
+  StackName:
+    Type: String
+    Description: "This name will be used to named the resources"
+  QSS3BucketName:
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
+    Default: "client-tests"
+    Type: String
+    ConstraintDescription: "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
+    Description: "S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
+  QSS3KeyPrefix:
+    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    Default: "client-infrastructure"
+    Type: String
+    ConstraintDescription: "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/)."
+    Description: "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with a hyphen (-)."
+  Cluster:
+    Description: ECS Cluster name
+    Type: String
+  ContainerPort:
+    Description: Specific port where the service is listening.
+    Type: Number
+  LoadBalancerArn:
+    Description: LoadBalancer Amazon Resource Name (ARN) (arn:aws:elasticloadbalancing:us-west-2:<account_number>:loadbalancer/app/<name>/12eb750be7171298)
+    Type: String
+    Default: AWS::NoValue
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: "VPC ID"
+  LoadBalancerHttpListenerArn:
+    Description: Load Balancer HTTP Listerner ARN
+    Type: String
+    Default: AWS::NoValue
+  LoadBalancerHttpsListenerArn:
+    Description: Load Balancer HTTPS Listerner ARN
+    Type: String
+    Default: AWS::NoValue
+  LoadBalancerName:
+    Description: Load Balancer Name
+    Type: String
+    Default: AWS::NoValue
+  ServiceName:
+    Description: Service Name
+    Type: String
+  Subdomain:
+    Description: Service Name
+    Type: String
+    Default: AWS::NoValue
+  Priority:
+    Type: Number
+    Description: "Listener Rule Priority"
+    Default: 0
+    MinValue: 0
+    MaxValue: 999
+  ConfigBucket:
+    Type: String
+    Description: Configuration bucket (if needed)
+    Default: client-tests
+  PrivateDNS:
+    Type: String
+    Description: Private DNS allocation.
+  CanonicalHostedZoneID:
+    Type: String
+    Description: LoadBalancer Canonical Hosted Zone ID.
+  LoadBalancerDomain:
+    Type: String
+    Description: LoadBalancer Domain.
+
+Resources:
+  ListenerStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/applications/listener.yml"
+      Parameters:
+        ContainerPort: !Ref ContainerPort
+        CreateHttpListener: true
+        HostPattern: !Sub "${Subdomain}.*"
+        Priority: !Ref Priority
+        HttpListenerArn: !Ref LoadBalancerHttpListenerArn
+        HttpsListenerArn: !Ref LoadBalancerHttpsListenerArn
+        LoadBalancerName: !Ref LoadBalancerName
+        ServiceName: !Ref ServiceName
+        StackName: !Ref StackName
+        TargetGroupName: !Sub ${ServiceName}-${Environment}
+        VpcId: !Ref VpcId
+      Tags:
+        - Key: ServiceName
+          Value: !Ref ServiceName
+        - Key: StackName
+          Value: !Ref StackName
+
+  ServiceDiscovery:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref PrivateDNS
+      Comment: Wilcard DNS for internal resolution
+      Name: !Sub "${Subdomain}.${PrivateDomain}."
+      Type: A
+      AliasTarget:
+        HostedZoneId: !Ref CanonicalHostedZoneID
+        DNSName: !Ref LoadBalancerDomain
+
+  TaskDefinition:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/services/task-definition.yml"
+      TimeoutInMinutes: 60
+      Parameters:
+        ServiceName: !Ref ServiceName
+        StackName: !Ref StackName
+        Environment: !Ref Environment
+        ContainerPort: !Ref ContainerPort
+        ConfigBucket: !Ref ConfigBucket
+
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref Cluster
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !GetAtt TaskDefinition.Outputs.TaskDefinition
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      LoadBalancers:
+        - ContainerName: !Sub ${ServiceName}-${Environment}
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !GetAtt ListenerStack.Outputs.TargetGroupArn
+      ServiceName: !Sub ${ServiceName}-${Environment}
