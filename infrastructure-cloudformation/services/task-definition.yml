@@ -27,7 +27,7 @@ Resources:
   TaskRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${ServiceName}-${Environment}
+      RoleName: !Sub ${ServiceName}-${Environment}-${StackName}-${AWS::Region}
       Path: /
       AssumeRolePolicyDocument: |
           {
@@ -57,7 +57,16 @@ Resources:
                               "logs:CreateLogGroup",
                               "logs:DescribeLogStreams",
                               "logs:PutLogEvents",
-                              "sns:Publish"
+                              "sns:Publish",
+                              "ssm:DescribeParameters",
+                              "ssm:GetParametersByPath",
+                              "kms:ListKeys",
+                              "kms:ListAliases",
+                              "kms:DescribeKey",
+                              "kms:ListKeyPolicies",
+                              "kms:GetKeyPolicy",
+                              "kms:GetKeyRotationStatus",
+                              "kms:Decrypt"
                           ],
                           "Resource": [
                               "*"
@@ -69,8 +78,8 @@ Resources:
   ECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub ${StackName}-${ServiceName}
-      RetentionInDays: 7
+      LogGroupName: !Sub /ecs/${ServiceName}-${Environment}
+      RetentionInDays: 14
 
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -81,13 +90,13 @@ Resources:
         - Name: !Sub ${ServiceName}-${Environment}
           PortMappings:
             - ContainerPort: !Ref ContainerPort
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/${ServiceName}-${Environment}
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ServiceName}-${Environment}
           LogConfiguration:
             LogDriver: 'awslogs'
             Options:
-              awslogs-group: !Sub ${StackName}-${ServiceName}
+              awslogs-group: !Sub /ecs/${ServiceName}-${Environment}
               awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: !Ref Environment
+              awslogs-stream-prefix: ecs
           MemoryReservation: 512
           Environment:
             - Name: AWS_REGION

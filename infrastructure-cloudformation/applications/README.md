@@ -1,6 +1,7 @@
 # Services
 
 * [LoadBalancer](#loadbalancer)
+* [Discovery](#discovery)
 * [Listener Rules](#listener)
 * [Services](#services)
 
@@ -17,6 +18,25 @@ Each target group routes requests to one or more registered targets, such as EC2
 * **SubnetIds**: Subnets where the LB is able to listen.
 * **VpcId**: VPC ID.
 
+## Discovery
+
+Service discovery is the automatic detection of devices and services offered by these devices on a computer network. Service discovery aims to reduce the configuration efforts from users. This is accomplish using route 53.
+
+Amazon Route 53 effectively connects user requests to infrastructure running in AWS – such as Amazon EC2 instances, Elastic Load Balancing load balancers, or Amazon S3 buckets – and can also be used to route users to infrastructure outside of AWS. You can use Amazon Route 53 to configure DNS health checks to route traffic to healthy endpoints or to independently monitor the health of your application and its endpoints. Amazon Route 53 Traffic Flow makes it easy for you to manage traffic globally through a variety of routing types.
+
+Each Application LoadBalancer created, will create a new Route53 Hosted zone. Where all services created using the created LoadBalancer will be added as a record set entry to the created hosted zone. This may be internal or external, depending on the type of LoadBalancer created.
+
+### Hosted zone:
+This resurce is created withing the LoadBalancer creation.
+* **Domain**: Domain name to be assigned to the Hosted Zone.
+
+### Record Set:
+This resource is created withing the service creation.
+* **Subdomain**: Subdomain, i.e. my-app.internal.domain. In this case my-app would be the subdmain.
+* **PrivateDomain**: User specified domain, internal or external.
+* **CanonicalHostedZoneID**: The ID of the Amazon Route 53 hosted zone associated with the load balancer, for example Z2P70J7EXAMPLE.
+* **LoadBalancerDomain**: The DNS name for the load balancer, for example my-load-balancer-424835706.us-west-2.elb.amazonaws.com.
+
 ## Listener
 A listener checks for connection requests from clients, using the protocol and port that you configure, and forwards requests to one or more target groups, based on the rules that you define. Each rule specifies a target group, condition, and priority. When the condition is met, the traffic is forwarded to the target group. You must define a default rule for each listener, and you can add rules that specify different target groups based on the content of the request (also known as content-based routing).
 
@@ -26,7 +46,7 @@ A listener checks for connection requests from clients, using the protocol and p
 * **ContainerPort**: Port where serivce is listening.
 * **HealthCheckHttpCode**: Health Check HTTP Code (200-499)
 * **HealthCheckPath**: Health check path (/)
-* **HostPattern**: Subdomain from service (subdomain.client.com)
+* **HostPattern**: Subdomain from service (subdomain.company.com)
 * **HttpListenerArn**: LoadBalancer listener ARN (HTTP)
 * **HttpsListenerArn**: LoadBalancer listener ARN (HTTPS)
 * **LoadBalancerName**: LoadBalancer Name.
@@ -59,7 +79,7 @@ Amazon ECS allows you to run and maintain a specified number of instances of a t
 * **LoadBalancerHttpListenerArn**: (Public dependent) Listener for HTTP connections.
 * **LoadBalancerHttpsListenerArn**: (Public dependent) Listener for HTTPS connections.
 * **LoadBalancerName**: (Public dependent) LoadBalancer Name.
-* **Subdomain**: (Public dependent) subdomain name (subdomain.client.com).
+* **Subdomain**: (Public dependent) subdomain name (subdomain.company.com).
 * **Priority**: (Public dependent) Priority for loadbalancer.
 
-![VPC Diagram](../images/clientApps.png)
+![VPC Diagram](../images/Apps.png)

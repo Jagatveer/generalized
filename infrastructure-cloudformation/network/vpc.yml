@@ -270,11 +270,12 @@ Parameters:
     Default: development
     AllowedValues:
       - production
+      - cproduction
       - staging
       - development
   StackName:
     Type: String
-    Default: client
+    Default: company
     Description: "This name will be used to named the resources"
 
 Conditions:

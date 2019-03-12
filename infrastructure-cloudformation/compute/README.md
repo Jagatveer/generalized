@@ -35,4 +35,4 @@ AWS Auto Scaling monitors your applications and automatically adjusts capacity t
 * AutoScaling Group
 * Launch Configuration
 
-![VPC Diagram](../images/clientECS.png)
+![VPC Diagram](../images/ECS.png)

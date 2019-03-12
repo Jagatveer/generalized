@@ -2,12 +2,19 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "Application Load Balancer"
 
 Parameters:
+  HostedZoneId:
+    Type: String
+    Default: ""
+    Description: "[IF EMPTY => will attempt to create domain on Route53]; Public domain hosted zone ID (Route 53)"
   LoadBalancerName:
     Type: String
     Description: "Load Balancer Name"
   Domain:
     Type: String
     Description: "Domain name for DNS (Optional)"
+  Environment:
+    Type: String
+    Description: For naming (development, staging, production)
   Scheme:
     Type: String
     Description: "Load Balancer Scheme"
@@ -55,14 +62,22 @@ Outputs:
     Value: !Ref TargetGroup
   PrivateDNS:
     Description: Private DNS hosted zone
-    Value: !Ref PrivateDNS
+    Value: !If
+    - HostedEmpty
+    - !Ref PrivateDNS
+    - !Ref HostedZoneId
+  PrivateDomain:
+    Description: Private Domain.
+    Value: !Ref Domain
 
 Conditions:
   SchemeEmpty: !Equals [!Ref Scheme, ""]
+  HostedEmpty: !Equals [!Ref HostedZoneId, ""]
   SslCertificateArnPresent: !Not [!Equals [!Ref Certificate, ""]]
 
 Resources:
   PrivateDNS:
+    Condition: HostedEmpty
     Type: "AWS::Route53::HostedZone"
     Properties:
       HostedZoneConfig:
@@ -74,23 +89,23 @@ Resources:
 
   HttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn:
-      - LoadBalancer
-      - TargetGroup
     Properties:
       LoadBalancerArn: !Ref LoadBalancer
       Port: 80
       Protocol: HTTP
       DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref TargetGroup
+        - Type: redirect
+          RedirectConfig:
+            Host: "#{host}"
+            Path: "/#{path}"
+            Port: '443'
+            Protocol: "HTTPS"
+            Query: "#{query}"
+            StatusCode: HTTP_301
 
   HttpsListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Condition: SslCertificateArnPresent
-    DependsOn:
-      - LoadBalancer
-      - TargetGroup
     Properties:
       LoadBalancerArn: !Ref LoadBalancer
       Port: 443
@@ -103,9 +118,15 @@ Resources:
 
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    DependsOn: SecurityGroup
     Properties:
       Name: !Ref LoadBalancerName
+      LoadBalancerAttributes:
+        - Key: access_logs.s3.enabled
+          Value: 'true'
+        - Key: access_logs.s3.bucket
+          Value: company-load-balancer-access-logs
+        - Key: access_logs.s3.prefix
+          Value: !Sub ${Environment}
       Scheme: !If
         - SchemeEmpty
         - !Ref AWS::NoValue
@@ -121,7 +142,7 @@ Resources:
       VpcId: !Ref VpcId
       SecurityGroupIngress:
         - CidrIp: 0.0.0.0/0
-          IpProtocol: -1
+          IpProtocol: '-1'
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -132,18 +153,18 @@ Resources:
       HealthCheckTimeoutSeconds: 10
       HealthyThresholdCount: 3
       Matcher:
-        HttpCode: 200
+        HttpCode: '200'
       Port: 80
       Protocol: HTTP
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds
-          Value: 60
+          Value: '60'
         - Key: stickiness.enabled
-          Value: true
+          Value: 'true'
         - Key: stickiness.type
           Value: lb_cookie
         - Key: stickiness.lb_cookie.duration_seconds
-          Value: 300
+          Value: '300'
       UnhealthyThresholdCount: 3
       VpcId: !Ref VpcId
       Tags:

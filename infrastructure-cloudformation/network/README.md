@@ -16,4 +16,4 @@ Amazon Virtual Private Cloud (Amazon VPC) lets you provision a logically isolate
 * 3 Elastic IPs for the NAT gateways.
 * Necessary access control list for each subnet.
 
-![VPC Diagram](../images/clientVPC.png)
+![VPC Diagram](../images/VPC.png)

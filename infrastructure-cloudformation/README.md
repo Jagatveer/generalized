@@ -1,4 +1,4 @@
-# client infrastructure
+# Company Up infrastructure
 
 * [Nested stacks](#nested)
 * [Naming & Location](#location)
@@ -50,5 +50,6 @@ Complexity may arise form this format, but it helps preserve the structure and u
 
 ## Infrastructure
 * **EcsInstanceType**: EC2 instance type for ECS cluster.
+* **SpotPrice**: If the environment needs to use Spot instances, value should be different than 0.
 
 ![Main stack format](images/mainstack.png)

@@ -9,10 +9,13 @@ Metadata:
           - QSS3BucketName
           - QSS3KeyPrefix
       - Label:
-          default: "Environment settings"
+          default: "Environment Settings"
         Parameters:
           - StackName
           - Environment
+          - PrivateDomain
+          - PublicDomain
+          - HostedZoneId
       - Label:
           default: "Network Configuration"
         Parameters:
@@ -31,17 +34,29 @@ Metadata:
           - KeyPairName
           - Certificate
       - Label:
-          default: "Infrastructure"
+          default: "Infrastructure Configuration"
         Parameters:
+          - BEPSImage
+          - BEPSSecurityGroup
+          - BEPSWEBImage
+          - BEPSWEBSecurityGroup
           - EcsInstanceType
+          - SpotPrice
+          - ConfigBucket
+          - MinimumHealthyPercent
+          - DesiredCount
 
   ParameterLabels:
     Certificate:
-      default: "Environment"
+      default: "SSL certificate"
     Environment:
       default: "Environment"
     StackName:
-      default: "Name for stack"
+      default: "Stack Name"
+    PublicDomain:
+      default: "Public Domain Name"
+    HostedZoneId:
+      default: "Public Domain Hosted Zone ID"
     AvailabilityZones:
       default: "Availability Zones"
     KeyPairName:
@@ -67,7 +82,25 @@ Metadata:
     VPCCIDR:
       default: "VPC CIDR"
     EcsInstanceType:
-      default: "ECS instance type"
+      default: "ECS Instance Type"
+    SpotPrice:
+      default: "Spot Price"
+    BEPSImage:
+      default: "BEPS Image ID"
+    PrivateDomain:
+      default: "Private Domain"
+    BEPSSecurityGroup:
+      default: "BEPS Security Group"
+    ConfigBucket:
+      default: "Configuration bucket for ECS services"
+    MinimumHealthyPercent:
+      default: "Minimum Healthy Percent"
+    DesiredCount:
+      default: " Desrired Count"
+    BEPSWEBImage:
+      default: "BEPS web image"
+    BEPSWEBSecurityGroup:
+      default: "BEPS web security group"
 
 Parameters:
   Certificate:
@@ -79,12 +112,21 @@ Parameters:
     Default: development
     AllowedValues:
       - production
+      - cproduction
       - staging
       - development
   StackName:
     Type: String
-    Default: client
+    Default: company
     Description: "This name will be used to named the resources"
+  PublicDomain:
+    Type: String
+    Default: company.com
+    Description: "Public domain name"
+  HostedZoneId:
+    Type: String
+    Default: ""
+    Description: "[IF EMPTY => will attempt to create domain on Route53]; Public domain hosted zone ID (Route 53)"
   PrivateSubnet2CIDR:
     AllowedPattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$"
     Default: 10.0.32.0/19
@@ -99,7 +141,7 @@ Parameters:
     Description: "CIDR block for private subnet 3 located in Availability Zone 3."
   QSS3BucketName:
     AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
-    Default: "client-tests"
+    Default: "company-infrastructure"
     Type: String
     ConstraintDescription: "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
     Description: "S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
@@ -117,7 +159,7 @@ Parameters:
     Description: "CIDR Block for the public DMZ subnet 3 located in Availability Zone 3"
   KeyPairName:
     Type: "AWS::EC2::KeyPair::KeyName"
-    Default: client-us-east-1
+    Default: brayest-us-east-1
     Description: "Public/private key pairs allow you to securely connect to your instance after it launches"
   PublicSubnet1CIDR:
     AllowedPattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$"
@@ -139,7 +181,7 @@ Parameters:
     Description: "CIDR Block for the VPC"
   QSS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*$"
-    Default: "client-infrastructure"
+    Default: "development"
     Type: String
     ConstraintDescription: "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/)."
     Description: "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with a hyphen (-)."
@@ -165,6 +207,62 @@ Parameters:
       - m4.xlarge
       - c4.large
       - c4.xlarge
+  SpotPrice:
+    Description: If spot price is 0, then EC2(OnDemand) will be used, otherwise spot instances will be used.
+    Type: Number
+    Default: 0.2000
+    MinValue: 0
+  BEPSImage:
+    Description: BEPS database Image ID
+    Type: AWS::EC2::Image::Id
+  BEPSWEBImage:
+    Description: BEPS WEB database Image ID
+    Type: AWS::EC2::Image::Id
+    Default: ami-053c900acc0b182dc
+  PrivateDomain:
+    Description: Private Domain for internal service discovery.
+    Type: String
+    Default: company-development.internal
+  BEPSSecurityGroup:
+    Description: BEPS security group for external connections
+    Type: String
+    Default: sg-094815bd0c05ce564
+  BEPSWEBSecurityGroup:
+    Description: BEPS security group for external connections
+    Type: String
+    Default: sg-094815bd0c05ce564
+  ConfigBucket:
+    Type: String
+    Description: Configuration bucket for ECS services (if needed)
+    Default: development.config.company.com
+  MinimumHealthyPercent:
+    Type: Number
+    Description: "Minimum Healthy Percent for ECS services"
+    Default: 0
+    MinValue: 0
+    MaxValue: 100
+  DesiredCount:
+    Type: Number
+    Description: "Desired Deployment Count for ECS services"
+    Default: 0
+    MinValue: 0
+    MaxValue: 100
+
+Mappings:
+  Environment:
+    development:
+      Name: dev
+    staging:
+      Name: staging
+    production:
+      Name: prod
+    cproduction:
+      Name: cprod
+
+Conditions:
+  RealProduction: !Equals [!Ref Environment, "production"]
+  ColdProduction: !Equals [!Ref Environment, "cproduction"]
+  Production: !Or [Condition: RealProduction, Condition: ColdProduction]
 
 Resources:
   VPCStack:
@@ -189,8 +287,6 @@ Resources:
 
   EcsStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn:
-      - VPCStack
     Properties:
       TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/compute/ecs-cluster.yml"
       Parameters:
@@ -198,9 +294,23 @@ Resources:
         InstanceType: !Ref EcsInstanceType
         QSS3BucketName: !Ref QSS3BucketName
         QSS3KeyPrefix: !Ref QSS3KeyPrefix
+        SpotPrice: !Ref SpotPrice
         KeyPair: !Ref KeyPairName
         SubnetIds: !Join [ ",", [!GetAtt [VPCStack, Outputs.PrivateSubnet1AID], !GetAtt [VPCStack, Outputs.PrivateSubnet2AID], !GetAtt [VPCStack, Outputs.PrivateSubnet3AID]]]
         VpcId: !GetAtt VPCStack.Outputs.VPCID
+      Tags:
+        - Key: StackName
+          Value: !Sub ${StackName}-${Environment}
+
+  BatchStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/compute/batch.yml"
+      Parameters:
+        Environment: !Ref Environment
+        KeyPair: !Ref KeyPairName
+        VpcId: !GetAtt VPCStack.Outputs.VPCID
+        SubnetIds: !Join [ ",", [!GetAtt [VPCStack, Outputs.PrivateSubnet1AID], !GetAtt [VPCStack, Outputs.PrivateSubnet2AID], !GetAtt [VPCStack, Outputs.PrivateSubnet3AID]]]
       Tags:
         - Key: StackName
           Value: !Sub ${StackName}-${Environment}
@@ -214,9 +324,11 @@ Resources:
       Parameters:
         LoadBalancerName: !Sub ${StackName}-${Environment}-public
         Scheme: internet-facing # internal or internet-facing
-        Domain: client.public # Always internal, public DNS are handle diferent
+        Domain: !Ref PublicDomain
+        Environment: !Ref Environment
+        HostedZoneId: !Ref  HostedZoneId
         Certificate: !Ref Certificate
-        SubnetIds: !Join [ ",", [!GetAtt [VPCStack, Outputs.PrivateSubnet1AID], !GetAtt [VPCStack, Outputs.PrivateSubnet2AID], !GetAtt [VPCStack, Outputs.PrivateSubnet3AID]]]
+        SubnetIds: !Join [ ",", [!GetAtt [VPCStack, Outputs.PublicSubnet1ID], !GetAtt [VPCStack, Outputs.PublicSubnet2ID], !GetAtt [VPCStack, Outputs.PublicSubnet3ID]]]
         VpcId: !GetAtt VPCStack.Outputs.VPCID
       Tags:
         - Key: StackName
@@ -233,7 +345,8 @@ Resources:
       Parameters:
         LoadBalancerName: !Sub ${StackName}-${Environment}-private
         Scheme: internal # internal or internet-facing
-        Domain: client.internal # Always internal, public DNS are handle diferent
+        Domain: !Ref PrivateDomain # Always internal, public DNS are handle diferent
+        Environment: !Ref Environment
         Certificate: !Ref Certificate
         SubnetIds: !Join [ ",", [!GetAtt [VPCStack, Outputs.PrivateSubnet1AID], !GetAtt [VPCStack, Outputs.PrivateSubnet2AID], !GetAtt [VPCStack, Outputs.PrivateSubnet3AID]]]
         VpcId: !GetAtt VPCStack.Outputs.VPCID
@@ -244,59 +357,38 @@ Resources:
           Value: Private
 
   AccountManagement:
-    DependsOn:
-      - PublicLoadBalancer
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/applications/services.yml"
       Parameters:
-        ServiceName: "account-mgmt" # This name must match the 'services' template file YAML
+        ServiceName: "webapp-account-mgmt" # This name must match the 'services' template file YAML
         Environment: !Ref Environment
-        DesiredCount: 0
-        Priority: 1 # LoadBalancer Priority, needs to be unique on the LB (Listener Rule Priority)
-        Subdomain: mgmt # Subdmain for listerner rule
+        DesiredCount: !Ref DesiredCount
+        Priority: '1' # LoadBalancer Priority, needs to be unique on the LB (Listener Rule Priority)
+        Subdomain: !If
+          - RealProduction
+          - my
+          - !If
+            - ColdProduction
+            - my-cprod
+            - !Sub
+              - my.${env}
+              - env:
+                  Fn::FindInMap: [Environment, !Ref Environment, Name]
         StackName: !Ref StackName
         QSS3BucketName: !Ref QSS3BucketName
         QSS3KeyPrefix: !Ref QSS3KeyPrefix
         Cluster: !GetAtt EcsStack.Outputs.EcsCluster
-        ContainerPort: 7080
+        ContainerPort: '7080'
+        MinimumHealthyPercent: !Ref MinimumHealthyPercent
+        ConfigBucket: !Ref ConfigBucket
         VpcId: !GetAtt VPCStack.Outputs.VPCID
         PrivateDNS: !GetAtt PublicLoadBalancer.Outputs.PrivateDNS
-        LoadBalancerArn: !GetAtt PublicLoadBalancer.Outputs.LoadBalancerArn
         LoadBalancerHttpListenerArn: !GetAtt PublicLoadBalancer.Outputs.HttpListenerArn
         LoadBalancerHttpsListenerArn: !GetAtt PublicLoadBalancer.Outputs.HttpsListenerArn
-        LoadBalancerName: !GetAtt PublicLoadBalancer.Outputs.LoadBalancerName
         CanonicalHostedZoneID: !GetAtt PublicLoadBalancer.Outputs.CanonicalHostedZoneID
         LoadBalancerDomain: !GetAtt PublicLoadBalancer.Outputs.LoadBalancerDomain
-      Tags:
-        - Key: StackName
-          Value: !Sub ${StackName}-${Environment}
-
-  BWMRestAPI:
-    DependsOn:
-      - PrivateLoadBalancer
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/applications/services.yml"
-      Parameters:
-        ServiceName: "bwm-rest-api" # This name must match the 'services' template file YAML
-        Environment: !Ref Environment
-        DesiredCount: 0
-        Priority: 1 # LoadBalancer Priority, needs to be unique on the LB (Listener Rule Priority)
-        Subdomain: bwm # Subdmain for listerner rule
-        StackName: !Ref StackName
-        QSS3BucketName: !Ref QSS3BucketName
-        QSS3KeyPrefix: !Ref QSS3KeyPrefix
-        Cluster: !GetAtt EcsStack.Outputs.EcsCluster
-        ContainerPort: 17080
-        VpcId: !GetAtt VPCStack.Outputs.VPCID
-        PrivateDNS: !GetAtt PrivateLoadBalancer.Outputs.PrivateDNS
-        LoadBalancerArn: !GetAtt PrivateLoadBalancer.Outputs.LoadBalancerArn
-        LoadBalancerHttpListenerArn: !GetAtt PrivateLoadBalancer.Outputs.HttpListenerArn
-        LoadBalancerHttpsListenerArn: !GetAtt PrivateLoadBalancer.Outputs.HttpsListenerArn
-        LoadBalancerName: !GetAtt PrivateLoadBalancer.Outputs.LoadBalancerName
-        CanonicalHostedZoneID: !GetAtt PrivateLoadBalancer.Outputs.CanonicalHostedZoneID
-        LoadBalancerDomain: !GetAtt PrivateLoadBalancer.Outputs.LoadBalancerDomain
+        PrivateDomain: !GetAtt PublicLoadBalancer.Outputs.PrivateDomain
       Tags:
         - Key: StackName
           Value: !Sub ${StackName}-${Environment}

@@ -13,12 +13,12 @@ Parameters:
   HealthCheckHttpCode:
     Type: String
     Description: "Health Check HTTP Code"
-    Default: "200-499"
+    Default: "200"
 
   HealthCheckPath:
     Type: String
     Description: "Health Check Path"
-    Default: "/"
+    Default: "/health_check"
 
   HostPattern:
     Type: String
@@ -31,10 +31,6 @@ Parameters:
   HttpsListenerArn:
     Type: String
     Description: "HTTPS Listener ARN"
-
-  LoadBalancerName:
-    Type: String
-    Description: "Load Balancer Name"
 
   PathPattern:
     Type: String
@@ -70,6 +66,27 @@ Parameters:
     Type: AWS::EC2::VPC::Id
     Description: "VPC ID"
 
+  Environment:
+    Type: String
+    Description: "Environment platform, this parameter will be used to name the resources ."
+    Default: development
+    AllowedValues:
+      - production
+      - cproduction
+      - staging
+      - development
+
+Mappings:
+  Environment:
+    development:
+      Name: dev
+    staging:
+      Name: staging
+    production:
+      Name: prod
+    cproduction:
+      Name: cprod
+
 Outputs:
   HealthCheckPath:
     Description: "Health Check Path"
@@ -99,8 +116,9 @@ Outputs:
 
 Conditions:
   CreateHttpListener: !Equals [!Ref CreateHttpListener, true]
-  PriorityEmpty: !Equals [!Ref Priority, 0]
+  IsCraterLakeWeb: !Equals [!Ref ServiceName, "crater-lake-web"]
   TargetGroupArnEmpty: !Equals [!Ref TargetGroupArn, ""]
+  IsProduction: !Equals [!Ref Environment, "production"]
 
 Resources:
   HttpListenerRule:
@@ -146,11 +164,11 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Condition: TargetGroupArnEmpty
     Properties:
-      HealthCheckIntervalSeconds: 30
+      HealthCheckIntervalSeconds: 60
       HealthCheckPath: !Ref HealthCheckPath
       HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 29
-      HealthyThresholdCount: 2
+      HealthCheckTimeoutSeconds: 50
+      HealthyThresholdCount: 5
       Matcher:
         HttpCode: !Ref HealthCheckHttpCode
       Name: !Ref TargetGroupName # 32 character limit
@@ -158,14 +176,14 @@ Resources:
       Protocol: HTTP
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds
-          Value: 60
+          Value: '60'
         - Key: stickiness.enabled
-          Value: true
+          Value: 'true'
         - Key: stickiness.type
           Value: lb_cookie
         - Key: stickiness.lb_cookie.duration_seconds
-          Value: 300
-      UnhealthyThresholdCount: 2
+          Value: '300'
+      UnhealthyThresholdCount: 4
       VpcId: !Ref VpcId
       Tags:
         - Key: ContainerPort
