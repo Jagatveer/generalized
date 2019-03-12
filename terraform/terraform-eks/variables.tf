@@ -29,3 +29,9 @@ variable "rds_subnets" {
 variable "worker" {
   type = "map"
 }
+
+variable "public_domain_name" {
+  type = "string"
+  description = "Public domain for the public services"
+  default = "shanux.com"
+}

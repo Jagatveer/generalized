@@ -21,3 +21,4 @@ worker= {
   max-size      = "4"
   key_name      = "test"
 }
+public_domain_name = "shanux.com"

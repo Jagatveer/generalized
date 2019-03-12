@@ -9,11 +9,12 @@ module "vpc" {
 }
 
 module "eks" {
-  source          = "modules/eks"
-  environment     = "${var.environment}"
-  cluster_name    = "${var.cluster_name}"
-  worker          = "${var.worker}"
-  vpc_id          = "${module.vpc.vpc_id}"
-  private_subnets = "${module.vpc.private_subnets_ids}"
-  public_subnets  = "${module.vpc.public_subnets_ids}"
+  source             = "modules/eks"
+  environment        = "${var.environment}"
+  cluster_name       = "${var.cluster_name}"
+  worker             = "${var.worker}"
+  vpc_id             = "${module.vpc.vpc_id}"
+  private_subnets    = "${module.vpc.private_subnets_ids}"
+  public_subnets     = "${module.vpc.public_subnets_ids}"
+  public_domain_name = "${var.public_domain_name}"
 }
