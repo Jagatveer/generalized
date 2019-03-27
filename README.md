@@ -24,7 +24,11 @@ This branch is meant to create general templates for the team. All team members 
 4. Use *yml* syntax as much as possible. Try to not create IAM policies or any other type using json syntax.
 
 ### Terraform Rules
-1. Rule
+1. Use join, split and square brackets to use list variables, avoid using variables for each member of the list. To reference a specific member of a list, use the index no. starting from 0
+2. Local names of resource types can't contain any reference to client or environment specific. The environment is to be specified in name attribute and in tags if needed.
+3. Use as few defaults as possible within the module variables. Defer parameter application to the main folder.
+4. Use templates to generate strings for other Terraform resources or outputs. Avoid using inline commands for user script, use .tpl files to store these commands and render it through template data sources.
+5. Use variables only, for environment capacities such as exposed ports, memory, cpu, task-definition id etc.
 
 ![Terraform Rules](images/terraformmodules.png)
 
