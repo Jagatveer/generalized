@@ -1,3 +1,0 @@
-#!/bin/sh
-#/usr/local/bin/slack_nagios.pl -C '<%=node['icinga2']['slack']['channel']['id']%>' -t "$NOTIFICATIONTYPE" -a "$HOSTNAME $HOSTALIAS" -d "$HOSTDESC" -w "$SHORTDATETIME" -s "$HOSTSTATE" -o "$HOSTOUTPUT" -u "$HOSTACKAUTHOR" -c "$HOSTACKCOMMENT"
-/usr/local/bin/slack_nagios.pl -field slack_channel=<%=node['icinga2']['slack']['channel']['id']%> -field HOSTALIAS="$HOSTNAME" -field HOSTSTATE="$HOSTSTATE" -field HOSTOUTPUT="$HOSTOUTPUT" -field NOTIFICATIONTYPE="$NOTIFICATIONTYPE"

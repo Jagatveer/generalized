@@ -1,3 +1,0 @@
-#!/bin/bash
-
-redis-cli info | grep keys | grep db | awk -F, '{print $1}' | sed 's/:/ | /g'

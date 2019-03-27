@@ -1,2 +1,0 @@
-#!/bin/bash
-/usr/local/bin/aws opsworks --region us-east-1 create-deployment --stack-id <%= @stack_id %> --instance-ids  <%= @node_id %> --command "{\"Name\":\"execute_recipes\", \"Args\":{\"recipes\":[\"ops-icinga2::config\"]}}"

@@ -1,7 +1,0 @@
-name 'ops-datadog'
-maintainer 'nClouds, Inc'
-maintainer_email 'support@nclouds.com'
-license 'All Rights Reserved'
-description 'Installs/Configures datadog agent'
-long_description 'Installs/Configures datadog agent'
-version '0.1.0'

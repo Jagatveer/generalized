@@ -1,7 +1,0 @@
-name 'ops-vpn'
-maintainer 'The Authors'
-maintainer_email 'you@example.com'
-license 'all_rights'
-description 'Installs/Configures ops-vpn'
-long_description 'Installs/Configures ops-vpn'
-version '0.1.0'

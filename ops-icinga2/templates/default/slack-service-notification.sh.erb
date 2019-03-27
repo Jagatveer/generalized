@@ -1,3 +1,0 @@
-#!/bin/sh
-#/usr/local/bin/slack_nagios.pl -C '<%=@slack['channel']['id']%>' -t "$NOTIFICATIONTYPE" -a "$HOSTALIAS" -d "$SERVICEDESC" -w "$SHORTDATETIME" -s "$SERVICESTATE" -o "$SERVICEOUTPUT" -u "$SERVICEACKAUTHOR" -c "$SERVICEACKCOMMENT"
-/usr/local/bin/slack_nagios.pl -field slack_channel=<%=@slack['channel']['id']%> -field HOSTALIAS="$HOSTALIAS" -field SERVICEDESC="$SERVICEDESC" -field SERVICESTATE="$SERVICESTATE" -field SERVICEOUTPUT="$SERVICEOUTPUT" -field NOTIFICATIONTYPE="$NOTIFICATIONTYPE"
