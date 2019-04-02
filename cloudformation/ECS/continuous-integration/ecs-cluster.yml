@@ -85,6 +85,8 @@ Resources:
               Action:
               - ecs:*
               - ecr:*
+              - ssm:*
+              - elasticloadbalancing:*
               Resource: '*'
   ECSInstanceProfile:
     Type: AWS::IAM::InstanceProfile

@@ -22,7 +22,7 @@ FROM alpine:3.9
 
 # hadolint ignore=DL3018
 RUN apk update && \
-  apk add --no-cache openssl ca-certificates
+  apk add --no-cache openssl ca-certificates curl
 
 # Install tools required for project
 RUN wget https://github.com/Droplr/aws-env/raw/master/bin/aws-env-linux-amd64 -O /bin/aws-env
@@ -32,4 +32,5 @@ COPY --from=build /go/src/app/bin /app/
 RUN chmod +x /bin/aws-env
 WORKDIR /app
 
-CMD ["sh", "-c", "eval $(aws-env) && ./app"]
+#DD_AGENT_HOST can be updated to use service discovery
+CMD ["sh", "-c", "eval $(aws-env) &&  export DD_AGENT_HOST=$(curl http://169.254.169.254/latest/meta-data/local-ipv4) DD_TRACE_AGENT_PORT=8126 && ./app"]

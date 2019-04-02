@@ -34,6 +34,7 @@ Resources:
       GroupDescription: Only allow HTTP and HTTPS comunication to the load balancer
       SecurityGroupIngress:
         - { IpProtocol: 6, CidrIp: "0.0.0.0/0", FromPort: 80, ToPort: 80 }
+        - { IpProtocol: 6, CidrIp: "0.0.0.0/0", FromPort: 8080, ToPort: 8080 }
         - { IpProtocol: 6, CidrIp: "0.0.0.0/0", FromPort: 443, ToPort: 443 }
       SecurityGroupEgress:
         - { IpProtocol: -1, CidrIp: "0.0.0.0/0" }
@@ -57,11 +58,20 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Sub ${StackName}-${Environment}
-  HttpListener:
+  BlueHttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       LoadBalancerArn: !Ref LoadBalancer
       Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref DefaultTargetGroup
+  GreenHttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 8080
       Protocol: HTTP
       DefaultActions:
         - Type: forward
@@ -91,43 +101,16 @@ Resources:
         - Key: Environment
           Value: !Sub ${StackName}-${Environment}
 
-    # Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    # Properties:
-    #   HealthCheckIntervalSeconds: 20
-    #   HealthCheckPath: /health
-    #   HealthCheckProtocol: HTTP
-    #   HealthCheckTimeoutSeconds: 10
-    #   HealthyThresholdCount: 3
-    #   Matcher:
-    #     HttpCode: '200'
-    #   Port: !Ref ContainerPort
-    #   Protocol: HTTP
-    #   TargetGroupAttributes:
-    #     - Key: deregistration_delay.timeout_seconds
-    #       Value: '60'
-    #     - Key: stickiness.enabled
-    #       Value: 'true'
-    #     - Key: stickiness.type
-    #       Value: lb_cookie
-    #     - Key: stickiness.lb_cookie.duration_seconds
-    #       Value: '300'
-    #   UnhealthyThresholdCount: 3
-    #   VpcId: !Ref VpcId
-    #   Tags:
-    #     - Key: LoadBalancerName
-    #       Value: !Ref LoadBalancerName
-    #     - Key: VpcId
-    #       Value: !Ref VpcId
-    #     - Key: StackName
-    #       Value: !Sub ${StackName}-${Environment}
-
 Outputs:
   CanonicalHostedZoneID:
     Description: Canonical Hosted Zone ID
     Value: !GetAtt LoadBalancer.CanonicalHostedZoneID
-  HttpListenerArn:
+  BlueHttpListenerArn:
     Description: HTTP Listener ARN
-    Value: !Ref HttpListener
+    Value: !Ref BlueHttpListener
+  GreenHttpListenerArn:
+    Description: HTTP Listener ARN
+    Value: !Ref GreenHttpListener
   # Conditioned if SSL Certificate is passed
   HttpsListenerArn:
     Description: HTTPS Listener ARN

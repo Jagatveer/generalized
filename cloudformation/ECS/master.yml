@@ -12,9 +12,6 @@ Parameters:
     Type: String
     Default: ""
     Description: SSL Certificate ARN
-  # DataDogAPIKey:
-  #   Type: String
-  #   Description: API Key of the DataDog Account
   KeyPair:
     Type: AWS::EC2::KeyPair::KeyName
     Default: ronaldo
@@ -103,7 +100,7 @@ Resources:
           Value: !Sub ${StackName}-${Environment}
     DependsOn:
       - VPC  
-  AppService:
+  BlueAppService:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/infrastructure/service.yml"
@@ -111,7 +108,8 @@ Resources:
         VpcId: !GetAtt VPC.Outputs.VPCID
         Cluster: !GetAtt ECS.Outputs.Cluster
         DesiredCount: 1
-        HttpListenerArn: !GetAtt ALB.Outputs.HttpListenerArn
+        HttpListenerArn: !GetAtt ALB.Outputs.BlueHttpListenerArn
+        AlternateHttpListenerArn: !GetAtt ALB.Outputs.GreenHttpListenerArn
         HttpsListenerArn: "" #!GetAtt ALB.Outputs.HttpsListenerArn
         RepositoryName: goapp
         ImageTag: latest
@@ -120,6 +118,46 @@ Resources:
         Environment: !Ref Environment
         StackName: !Ref StackName
         # DataDogAPIKey: !Ref DataDogAPIKey
+      Tags:
+        - Key: Environment
+          Value: !Sub ${StackName}-${Environment}
+    DependsOn:
+      - DB
+  GreenAppService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/infrastructure/service.yml"
+      Parameters:
+        VpcId: !GetAtt VPC.Outputs.VPCID
+        Cluster: !GetAtt ECS.Outputs.Cluster
+        DesiredCount: 1
+        HttpListenerArn: !GetAtt ALB.Outputs.GreenHttpListenerArn
+        AlternateHttpListenerArn: !GetAtt ALB.Outputs.BlueHttpListenerArn
+        HttpsListenerArn: "" #!GetAtt ALB.Outputs.HttpsListenerArn
+        RepositoryName: goapp
+        ImageTag: latest
+        ContainerPort: 8080
+        DBEndpoint: !GetAtt DB.Outputs.DBEndpoint
+        Environment: !Ref Environment
+        StackName: !Ref StackName
+        # DataDogAPIKey: !Ref DataDogAPIKey
+      Tags:
+        - Key: Environment
+          Value: !Sub ${StackName}-${Environment}
+    DependsOn:
+      - DB
+  DDService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/infrastructure/ddservice.yml"
+      Parameters:
+        Cluster: !GetAtt ECS.Outputs.Cluster
+        RepositoryName: datadog/agent
+        Family: datadog
+        ImageTag: latest
+        # DataDogAPIKey: 
+        Environment: !Ref Environment
+        StackName: !Ref StackName
       Tags:
         - Key: Environment
           Value: !Sub ${StackName}-${Environment}

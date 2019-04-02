@@ -15,6 +15,11 @@ Parameters:
   HttpListenerArn:
     Type: String
     Description: ALB http listener to register the task
+  # Used for blue green deployment
+  AlternateHttpListenerArn:
+    Type: String
+    Default: ""
+    Description: ALB http listener to register the task
   HttpsListenerArn:
     Type: String
     Default: ""
@@ -40,6 +45,7 @@ Parameters:
     Description: Stack name to prefix some resource names
 Conditions:
   HttpsEnabled: !Not [!Equals [!Ref HttpsListenerArn, ""]]
+  BlueGreen: !Not [!Equals [!Ref AlternateHttpListenerArn, ""]]
 Resources:
   ############## Roles ##############
   ECSServiceRole:
@@ -164,6 +170,21 @@ Resources:
       Actions:
         - TargetGroupArn: !Ref TargetGroup
           Type: forward
+  # Conditioned if Blue / Green deployment enabled
+  AlternateHttpListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: BlueGreen
+    Properties:
+      ListenerArn: !Ref AlternateHttpListenerArn
+      Priority: 4
+      Conditions:
+        - Field: path-pattern
+          Values: 
+            - /*
+      Actions:
+        - TargetGroupArn: !Ref TargetGroup
+          Type: forward
+  # Conditioned if Https is enabled
   HttpsListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Condition: HttpsEnabled

@@ -20,8 +20,8 @@ Parameters:
     Description: Name for the ECS Cluster
   DataDogAPIKey:
     Type: AWS::SSM::Parameter::Value<String>
+    Default: /L2-Demo/DD_API_KEY
     Description: API Key of the DataDog Account on Parameter Store
-    Default: /ECS/ddApi
   InstanceType:
     Type: String
     Default: t2.micro
@@ -160,11 +160,40 @@ Resources:
           Ebs:
             VolumeSize: 50
             VolumeType: gp2
+        - DeviceName: /dev/xvdcy
+          Ebs:
+            VolumeSize: 50
+            VolumeType: gp2
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          yum install -y aws-cfn-bootstrap
+          yum install -y aws-cfn-bootstrap nfs-utils
           yum install -y https://amazon-ssm-${AWS::Region}.s3.amazonaws.com/latest/linux_amd64/amazon-ssm-agent.rpm
+
+          # Docker volume confiuration
+          vgextend docker /dev/xvdcy
+          lvextend -L+100G /dev/docker/docker-pool
+
+          # DataDog configuration
+          # DD_API_KEY=${DataDogAPIKey}  bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)"
+
+          # mkdir /opt/datadog-agent-conf.d
+
+          # cat <<EOF > /opt/datadog-agent-conf.d/http_check.d/conf.yml
+          # init_config:
+          # instances:
+          #     - collect_disk_stats: true
+          # EOF
+          # cat <<EOF > /etc/datadog-agent/conf.d/http_check.d/conf.yaml
+          # init_config:
+          # instances:
+          #     - name:  GoApp
+          #       url: ${ALBDNS}
+          #       disable_ssl_validation: false
+          # EOF
+          
+          # usermod -a -G docker dd-agent
+          # initctl restart datadog-agent
 
           sudo /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSLaunchConfiguration
           sudo /opt/aws/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSAutoScalingGroup
@@ -186,6 +215,13 @@ Resources:
                 echo "ECS_NUM_IMAGES_DELETE_PER_CYCLE=20" >> /etc/ecs/ecs.config
                 echo ECS_LOGLEVEL=info >> /etc/ecs/ecs.config
           files:
+            "/opt/datadog-agent-conf.d/http_check.yml":
+              content: !Sub |
+                init_config:
+                instances:
+                  - name: GoApp
+                    url: http://${ALBDNS}
+                    disable_ssl_validation: true
             "/etc/cfn/cfn-hup.conf":
               mode: 000400
               owner: root

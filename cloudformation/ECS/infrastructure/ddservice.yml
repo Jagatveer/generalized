@@ -1,0 +1,137 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "ECS Services"
+
+Parameters:
+  Cluster:
+    Type: String
+    Description: The ECS Cluster Id for the service
+  RepositoryName:
+    Type: String
+    Description: ECR repository name where the docker image is located
+  Family:
+    Type: String
+    Description: ECR repository name where the docker image is located
+  ImageTag:
+    Type: String
+    Description: Application image tag
+  DataDogAPIKey:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /L2-Demo/DD_API_KEY
+    Description: DataDog API key on Parameter Store
+  Environment:
+    Type: String
+    Default: Dev
+    AllowedValues: [Prod, Stage, Dev]
+  StackName:
+    Type: String
+    Description: Stack name to prefix some resource names
+Resources:
+  ############## Roles ##############
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: Allow
+            Principal: 
+              Service: 
+                - ecs-tasks.amazonaws.com
+            Action: 
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Policies: 
+        - PolicyName: !Sub ${StackName}-${Environment}-GetSSMParameters
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: Allow
+                Action:
+                  - ecs:*
+                Resource: "*"
+  ############# Service #############
+  Service: 
+    Type: AWS::ECS::Service
+    Properties:
+      LaunchType: EC2
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref TaskDefinition
+      SchedulingStrategy: DAEMON
+      DeploymentConfiguration:
+        MaximumPercent: 100
+        MinimumHealthyPercent: 0
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${Family}-${Environment}
+      TaskRoleArn: !Ref TaskRole
+      Volumes:
+        - Name: docker_sock
+          Host:
+            SourcePath: /var/run/docker.sock
+        - Name: proc
+          Host:
+            SourcePath: /proc/
+        - Name: cgroup
+          Host:
+            SourcePath: /cgroup/
+        - Name: pointdir
+          Host:
+            SourcePath: /opt/datadog-agent/run
+        - Name: passwd
+          Host:
+            SourcePath: /etc/passwd
+        - Name: conf
+          Host:
+            SourcePath: /opt/datadog-agent-conf.d
+      ContainerDefinitions:
+        - Name: !Sub ${Family}-${Environment}
+          Essential: true
+          Image: !Sub ${RepositoryName}:${ImageTag}
+          MountPoints:
+            - ContainerPath: /var/run/docker.sock
+              SourceVolume: docker_sock
+            - ContainerPath: /host/proc/
+              SourceVolume: proc
+            - ContainerPath: /host/sys/fs/cgroup
+              SourceVolume: cgroup
+            - ContainerPath: /opt/datadog-agent/run
+              SourceVolume: pointdir
+            - ContainerPath: /etc/passwd
+              SourceVolume: passwd
+            - ContainerPath: /conf.d
+              SourceVolume: conf
+          Environment:
+            - Name: DD_API_KEY
+              Value: !Ref DataDogAPIKey
+            - Name: DD_APM_ENABLED
+              Value: true
+            - Name: DD_APM_NON_LOCAL_TRAFFIC
+              Value: true
+            - Name: DD_APM_ENV
+              Value: l2-demo
+            - Name: DD_SITE
+              Value: datadoghq.com
+            - Name: DD_LOGS_ENABLED
+              Value: true
+            - Name: DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL
+              Value: true
+            - Name: DD_APM_ANALYZED_SPANS
+              Value: l2-demo-app|go.request=1
+            - Name: DD_PROCESS_AGENT_ENABLED
+              Value: true
+          Memory: 256
+          PortMappings:
+            - ContainerPort: 8126
+              HostPort: 8126
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+  ########## CloudWatch Logs #########
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 30
