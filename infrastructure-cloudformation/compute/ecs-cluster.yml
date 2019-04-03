@@ -225,6 +225,7 @@ Resources:
         PauseTime: !Ref PauseTime
         WaitOnResourceSignals: false
     Properties:
+      Cooldown: 30
       VPCZoneIdentifier: !Ref SubnetIds
       LaunchConfigurationName: !Ref EcsLaunchConfiguration
       MinSize: !Ref MinSize
