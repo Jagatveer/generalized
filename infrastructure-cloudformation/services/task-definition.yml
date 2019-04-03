@@ -14,9 +14,14 @@ Parameters:
   ContainerPort:
     Type: String
     Description: Port where the container is listening to.
-  ConfigBucket:
+  ContainerMemory:
     Type: String
-    Description: Configuration bucket.
+    Description: Ram memory allocation for a task running in the cluster.
+    Default: 512
+  ContainerCPU:
+    Type: String
+    Description: CPU units allocated for a task running in the cluster.
+    Default: 512
 
 Outputs:
   TaskDefinition:
@@ -29,51 +34,36 @@ Resources:
     Properties:
       RoleName: !Sub ${ServiceName}-${Environment}-${StackName}-${AWS::Region}
       Path: /
-      AssumeRolePolicyDocument: |
-          {
-              "Version": "2012-10-17",
-              "Statement": [
-                  {
-                      "Effect": "Allow",
-                      "Principal": {
-                          "Service": "ecs-tasks.amazonaws.com"
-                      },
-                      "Action": "sts:AssumeRole"
-                  }
-              ]
-          }
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
       Policies:
         - PolicyName: !Sub ecs-service-file-${StackName}
-          PolicyDocument: !Sub |
-              {
-                  "Version": "2012-10-17",
-                  "Statement": [
-                      {
-                          "Sid": "VisualEditor0",
-                          "Effect": "Allow",
-                          "Action": [
-                              "s3:*",
-                              "logs:CreateLogStream",
-                              "logs:CreateLogGroup",
-                              "logs:DescribeLogStreams",
-                              "logs:PutLogEvents",
-                              "sns:Publish",
-                              "ssm:DescribeParameters",
-                              "ssm:GetParametersByPath",
-                              "kms:ListKeys",
-                              "kms:ListAliases",
-                              "kms:DescribeKey",
-                              "kms:ListKeyPolicies",
-                              "kms:GetKeyPolicy",
-                              "kms:GetKeyRotationStatus",
-                              "kms:Decrypt"
-                          ],
-                          "Resource": [
-                              "*"
-                          ]
-                      }
-                  ]
-              }
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:*
+                  - logs:CreateLogStream
+                  - logs:CreateLogGroup
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                  - sns:Publish
+                  - ssm:DescribeParameters
+                  - ssm:GetParametersByPath
+                  - kms:ListKeys
+                  - kms:ListAliases
+                  - kms:DescribeKey
+                  - kms:ListKeyPolicies
+                  - kms:GetKeyPolicy
+                  - kms:GetKeyRotationStatus
+                  - kms:Decrypt
+                Resource:
+                  - "*"
 
   ECSLogGroup:
     Type: AWS::Logs::LogGroup
@@ -97,11 +87,10 @@ Resources:
               awslogs-group: !Sub /ecs/${ServiceName}-${Environment}
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
-          MemoryReservation: 512
+          Memory: !Ref ContainerMemory
+          Cpu: !Ref ContainerCPU
           Environment:
             - Name: AWS_REGION
               Value: !Ref AWS::Region
-            - Name: CONFIG_BUCKET_NAME
-              Value: !Ref ConfigBucket
             - Name: PORT
               Value: !Ref ContainerPort

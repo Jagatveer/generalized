@@ -6,52 +6,43 @@ This template needs two command line args to work.
   1) A filename where the script will put the variables -- DefaultVariables.txt (could be relative or absolut path)
   2) The BeginsWith parameter, with this we will decide wich parameter pull, -- /DEV/   /STAGING/   /DEFAULT
 */
-const fs = require('fs');
 var AWS = require('aws-sdk');
-var OUTPUT      = process.argv[2]
-var BEGINSWITH  = process.argv[3]
-var REGION      = process.argv[4]
+const fs = require('fs');
+var OUTPUT      = process.argv[2] // ssm_source
+var OUTPUTENV   = process.argv[3] // .env
+var BEGINSWITH  = process.argv[4] // ex. /recognize/patagonia
+var REGION      = process.argv[5] // us-west-1
 var ssm = new AWS.SSM({region:REGION});
 
 var params = {
-  MaxResults: 50,
-  ParameterFilters: [
-    {
-      Key: 'Name',
-      Option: 'BeginsWith',
-      Values: [
-        BEGINSWITH,
-      ]
-    }
-  ]
+  MaxResults: 10,
+  WithDecryption: true,
+  Path: BEGINSWITH
 };
+
 function collectParameters(err, data) {
+  console.log("Calling collectParameters: ", data.Parameters.length)
   if (err) console.log(err, err.stack); // an error occurred
   else {
-      for (var parameter in data.Parameters) {
-        setEnvironmentVariables(data.Parameters[parameter].Name)
-      }
-      if (typeof data.NextToken !== 'undefined') {
-        params["NextToken"]=data.NextToken
-        ssm.describeParameters(params, collectParameters);
-      }
+    for (var parameter in data.Parameters) {
+      setEnvironmentVariables(data.Parameters[parameter])
+    }
+
+    if (typeof data.NextToken !== 'undefined') {
+      params["NextToken"]=data.NextToken
+      ssm.getParametersByPath(params, collectParameters);
+    }
   }
 }
-function setEnvironmentVariables(parameterName){
-    var params = {
-      Name: parameterName,
-      WithDecryption: true
-    };
-    ssm.getParameter(params, function(err, data) {
-      if (err) console.log(err, err.stack);
-      else {
-        var myArray = data.Parameter.Name.split("/");
-        var myArrayLength = myArray.length;
-        fs.appendFile(OUTPUT, 'export ' + myArray[myArrayLength - 1] + '="' + data.Parameter.Value + "\"\n" , function (err) {
-          if (err) throw err;
-        });
-      }
-    });
-}
-ssm.describeParameters(params, collectParameters);
 
+function setEnvironmentVariables(parameter) {
+  // console.log("Setting EnvVar: ", parameter.Name);
+  fs.appendFile(OUTPUT, 'export ' + parameter.Name.split("/")[3] + '="' + parameter.Value + "\"\n" , function (err) {
+    if (err) throw err;
+  });
+  fs.appendFile(OUTPUTENV, parameter.Name.split("/")[3] + '="' + parameter.Value + "\"\n" , function (err) {
+    if (err) throw err;
+  });
+}
+
+ssm.getParametersByPath(params, collectParameters);

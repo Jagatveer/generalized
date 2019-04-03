@@ -72,7 +72,6 @@ Parameters:
     Default: development
     AllowedValues:
       - production
-      - cproduction
       - staging
       - development
 
@@ -84,8 +83,6 @@ Mappings:
       Name: staging
     production:
       Name: prod
-    cproduction:
-      Name: cprod
 
 Outputs:
   HealthCheckPath:
@@ -101,7 +98,7 @@ Outputs:
 
   HttpsListenerRuleArn:
     Description: "HTTPS Listener Rule ARN"
-    Value: !Ref HttpsListenerRule
+    Value: !If [HttpsListenerArnPresent, !Ref HttpsListenerRule, "AWS::NoValue"]
 
   TargetGroupArn:
     Description: "Target Group ARN"
@@ -116,9 +113,9 @@ Outputs:
 
 Conditions:
   CreateHttpListener: !Equals [!Ref CreateHttpListener, true]
-  IsCraterLakeWeb: !Equals [!Ref ServiceName, "crater-lake-web"]
   TargetGroupArnEmpty: !Equals [!Ref TargetGroupArn, ""]
   IsProduction: !Equals [!Ref Environment, "production"]
+  HttpsListenerArnPresent: !Not [!Equals [!Ref HttpsListenerArn, "AWS::NoValue"]]
 
 Resources:
   HttpListenerRule:
@@ -142,6 +139,7 @@ Resources:
             - !Ref PathPattern
 
   HttpsListenerRule:
+    Condition: HttpsListenerArnPresent
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       ListenerArn: !Ref HttpsListenerArn
