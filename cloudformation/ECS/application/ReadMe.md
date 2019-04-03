@@ -1,7 +1,14 @@
-# go-pg-crud
+# Go Application
 
-This is an example of CRUD web application writen in pure Golang. It makes use of Postgres as database.
+This is an example of CRUD web application writen in Go that makes use of a Postgres database
 
-![01.png](https://github.com/maiconio/go-pg-crud/blob/master/screenshots/01.png)
+## Getting Started
 
-![02.png](https://github.com/maiconio/go-pg-crud/blob/master/screenshots/02.png)
+Use Docker Compose to run the application locally:
+
+```bash
+docker-compose build
+```
+```bash
+docker-compose run
+```
