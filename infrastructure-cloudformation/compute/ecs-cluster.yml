@@ -11,6 +11,7 @@ Metadata:
       - Label:
           default: "Configuration options"
         Parameters:
+          - ECSAMI
           - ClusterName
           - DesiredCapacity
           - MaxBatchSize
@@ -31,6 +32,8 @@ Metadata:
   ParameterLabels:
     ClusterName:
       default: "Cluster Name"
+    ECSAMI:
+      default: "ECS optimized ami"
     KeyPairName:
       default: "Key Pair Name"
     DesiredCapacity:
@@ -54,11 +57,10 @@ Metadata:
     InstanceType:
       default: "ECS instance type"
 
-
 Parameters:
   QSS3BucketName:
     AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
-    Default: "brayest-tests"
+    Default: "tests"
     Type: String
     ConstraintDescription: "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
     Description: "S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
@@ -111,40 +113,10 @@ Parameters:
   VpcId:
     Type: AWS::EC2::VPC::Id
     Description: VPC-ID of your existing Virtual Private Cloud (VPC).
-
-Mappings:
-  AWSRegionToAMI:
-  # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
-    us-east-2:
-      AMI: ami-09a64272e7fe706b6
-    us-east-1:
-      AMI: ami-0b9a214f40c38d5eb
-    us-west-2:
-      AMI: ami-00430184c7bb49914
-    us-west-1:
-      AMI: ami-0e7dd5fe55b87a5fe
-    eu-west-3:
-      AMI: ami-06b685336aa497c15
-    eu-west-2:
-      AMI: ami-0209769f0c963e791
-    eu-west-1:
-      AMI: ami-05b65c0f6a75c1c64
-    eu-central-1:
-      AMI: ami-0bb804e8cd910a664
-    ap-northeast-2:
-      AMI: ami-0d947b1901b27a37c
-    ap-northeast-1:
-      AMI: ami-08681de00a0aae54f
-    ap-southeast-2:
-      AMI: ami-05b48eda7f92aadbe
-    ap-southeast-1:
-      AMI: ami-0a3f70f0255af1d29
-    ca-central-1:
-      AMI: ami-00d1bdbd447b5933a
-    ap-south-1:
-      AMI: ami-0590d0dd683026eab
-    sa-east-1:
-      AMI: ami-01bca91ecf4c1f494
+  ECSAMI:
+    Description: ECS optimized ami ID
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux/recommended/image_id
 
 Outputs:
   EcsCluster:
@@ -173,62 +145,53 @@ Resources:
     Properties:
       Path: /
       RoleName: !Sub ${ClusterName}-EcsRole-${AWS::Region}
-      ManagedPolicyArns: [
-        "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM",
-        "arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess"
-      ]
-      AssumeRolePolicyDocument: |
-        {
-          "Statement": [{
-            "Action": "sts:AssumeRole",
-            "Effect": "Allow",
-            "Principal": {
-              "Service": "ec2.amazonaws.com"
-            }
-          }]
-        }
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+        - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+                - sts:AssumeRole
       Policies:
         - PolicyName: ecs-service
-          PolicyDocument: |
-            {
-              "Statement": [{
-                "Effect": "Allow",
-                "Action": [
-                    "ecs:CreateCluster",
-                    "ecs:DeregisterContainerInstance",
-                    "ecs:DiscoverPollEndpoint",
-                    "ecs:Poll",
-                    "ecs:RegisterContainerInstance",
-                    "ecs:StartTelemetrySession",
-                    "ecs:UpdateContainerInstancesState",
-                    "ecs:Submit*",
-                    "ecr:*",
-                    "logs:CreateLogStream",
-                    "logs:CreateLogGroup",
-                    "logs:DescribeLogStreams",
-                    "logs:PutLogEvents",
-                    "ecr:BatchCheckLayerAvailability",
-                    "ecr:BatchGetImage",
-                    "ecr:GetDownloadUrlForLayer",
-                    "ecr:GetAuthorizationToken",
-                    "sns:Publish",
-                    "cloudformation:*"
-                  ],
-                  "Resource": "*"
-              }]
-            }
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:CreateCluster
+                  - ecs:DeregisterContainerInstance
+                  - ecs:DiscoverPollEndpoint
+                  - ecs:Poll
+                  - ecs:RegisterContainerInstance
+                  - ecs:StartTelemetrySession
+                  - ecs:UpdateContainerInstancesState
+                  - ecs:Submit*
+                  - ecr:*
+                  - logs:CreateLogStream
+                  - logs:CreateLogGroup
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:GetAuthorizationToken
+                  - sns:Publish
+                  - cloudformation:*
+                Resource:
+                  - "*"
         - PolicyName: parameter_store_key-encrypt-decrypt
-          PolicyDocument: |
-            {
-              "Statement": [{
-                "Effect": "Allow",
-                "Action": [
-                    "kms:Encrypt",
-                    "kms:Decrypt"
-                  ],
-                  "Resource": "arn:aws:kms:us-west-2:083372784142:key/3c278328-41c1-4b36-a850-91d166ccb30d"
-              }]
-            }
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                  - kms:Decrypt
+                Resource:
+                  - "*"
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -277,7 +240,7 @@ Resources:
   EcsLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
-      ImageId: !FindInMap [AWSRegionToAMI, !Ref "AWS::Region", AMI]
+      ImageId: !Ref ECSAMI
       InstanceType: !Ref InstanceType
       KeyName: !Ref KeyPair
       SpotPrice: !If
@@ -291,7 +254,7 @@ Resources:
       BlockDeviceMappings:
         - DeviceName: "/dev/xvdcy"
           Ebs:
-            VolumeSize: 50
+            VolumeSize: 100
             VolumeType: "gp2"
       UserData:
         Fn::Base64: !Sub |

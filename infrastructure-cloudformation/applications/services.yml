@@ -8,7 +8,6 @@ Parameters:
     Default: development
     AllowedValues:
       - production
-      - cproduction
       - staging
       - development
   DesiredCount:
@@ -20,7 +19,7 @@ Parameters:
     Description: "This name will be used to named the resources"
   QSS3BucketName:
     AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
-    Default: "brayest-tests"
+    Default: "tests"
     Type: String
     ConstraintDescription: "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
     Description: "S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
@@ -91,8 +90,6 @@ Mappings:
       Name: staging
     production:
       Name: prod
-    cproduction:
-      Name: cprod
 
 Conditions:
   IsCraterLakeWeb: !Equals [!Ref ServiceName, "crater-lake-web"]

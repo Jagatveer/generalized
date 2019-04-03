@@ -1,0 +1,51 @@
+Mappings:
+  Access:
+    # find the rest here https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-access-logs.html
+    us-east-1:
+      ID: 127311923021
+    us-east-2:
+      ID: 033677994240
+    us-west-1:
+      ID: 027434742980
+    us-west-2:
+      ID: 797873946194
+
+Resources:
+  S3BucketLogsALB:
+    DeletionPolicy: 'Delete'
+    Metadata:
+      Comment: 'Bucket to store logs from ALB'
+    Properties:
+      AccessControl: 'Private'
+      BucketName: 'company-load-balancer-access-logs'
+    Type: 'AWS::S3::Bucket'
+
+  BucketPolicyDevelopment:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: S3BucketLogsALB
+      PolicyDocument:
+        Fn::Sub:
+          - |
+            {
+              "Version": "2012-10-17",
+              "Id": "LogAccess",
+              "Statement":
+              [
+                {
+                  "Sid": "LogAccess",
+                  "Action": [
+                    "s3:PutObject"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "arn:aws:s3:::company-load-balancer-access-logs/*",
+                  "Principal": {
+                    "AWS": [
+                      "${IDValue}"
+                    ]
+                  }
+                }
+              ]
+            }
+          - { IDValue: !FindInMap [ Access, !Ref "AWS::Region", ID ] }

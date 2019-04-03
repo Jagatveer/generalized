@@ -29,19 +29,20 @@ Metadata:
           - PublicSubnet2CIDR
           - PublicSubnet3CIDR
       - Label:
+          default: "Compute Configuration"
+        Parameters:
+          - EcsInstanceType
+          - SpotPrice
+          - DesiredCapacity
+          - KeyPairName
+          - MaxSize
+      - Label:
           default: "Security Configuration"
         Parameters:
-          - KeyPairName
           - Certificate
       - Label:
           default: "Infrastructure Configuration"
         Parameters:
-          - BEPSImage
-          - BEPSSecurityGroup
-          - BEPSWEBImage
-          - BEPSWEBSecurityGroup
-          - EcsInstanceType
-          - SpotPrice
           - ConfigBucket
           - MinimumHealthyPercent
           - DesiredCount
@@ -85,22 +86,19 @@ Metadata:
       default: "ECS Instance Type"
     SpotPrice:
       default: "Spot Price"
-    BEPSImage:
-      default: "BEPS Image ID"
+    MaxSize:
+      default: "Maximum number of EC2 instances (min 2)"
+    DesiredCapacity:
+      default: "Amount of EC2 instances in the cluster (min 2)"
     PrivateDomain:
       default: "Private Domain"
-    BEPSSecurityGroup:
-      default: "BEPS Security Group"
     ConfigBucket:
       default: "Configuration bucket for ECS services"
     MinimumHealthyPercent:
       default: "Minimum Healthy Percent"
     DesiredCount:
       default: " Desrired Count"
-    BEPSWEBImage:
-      default: "BEPS web image"
-    BEPSWEBSecurityGroup:
-      default: "BEPS web security group"
+
 
 Parameters:
   Certificate:
@@ -112,7 +110,6 @@ Parameters:
     Default: development
     AllowedValues:
       - production
-      - cproduction
       - staging
       - development
   StackName:
@@ -159,7 +156,7 @@ Parameters:
     Description: "CIDR Block for the public DMZ subnet 3 located in Availability Zone 3"
   KeyPairName:
     Type: "AWS::EC2::KeyPair::KeyName"
-    Default: brayest-us-east-1
+    Default: key-us-east-1
     Description: "Public/private key pairs allow you to securely connect to your instance after it launches"
   PublicSubnet1CIDR:
     AllowedPattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$"
@@ -210,27 +207,20 @@ Parameters:
   SpotPrice:
     Description: If spot price is 0, then EC2(OnDemand) will be used, otherwise spot instances will be used.
     Type: Number
-    Default: 0.2000
+    Default: 0
     MinValue: 0
-  BEPSImage:
-    Description: BEPS database Image ID
-    Type: AWS::EC2::Image::Id
-  BEPSWEBImage:
-    Description: BEPS WEB database Image ID
-    Type: AWS::EC2::Image::Id
-    Default: ami-053c900acc0b182dc
+  MaxSize:
+    Description: Max cluster size.
+    Type: String
+    Default: 5
+  DesiredCapacity:
+    Type: String
+    Default: 2
   PrivateDomain:
     Description: Private Domain for internal service discovery.
     Type: String
     Default: company-development.internal
-  BEPSSecurityGroup:
-    Description: BEPS security group for external connections
-    Type: String
-    Default: sg-094815bd0c05ce564
-  BEPSWEBSecurityGroup:
-    Description: BEPS security group for external connections
-    Type: String
-    Default: sg-094815bd0c05ce564
+
   ConfigBucket:
     Type: String
     Description: Configuration bucket for ECS services (if needed)
@@ -256,13 +246,6 @@ Mappings:
       Name: staging
     production:
       Name: prod
-    cproduction:
-      Name: cprod
-
-Conditions:
-  RealProduction: !Equals [!Ref Environment, "production"]
-  ColdProduction: !Equals [!Ref Environment, "cproduction"]
-  Production: !Or [Condition: RealProduction, Condition: ColdProduction]
 
 Resources:
   VPCStack:
@@ -298,22 +281,16 @@ Resources:
         KeyPair: !Ref KeyPairName
         SubnetIds: !Join [ ",", [!GetAtt [VPCStack, Outputs.PrivateSubnet1AID], !GetAtt [VPCStack, Outputs.PrivateSubnet2AID], !GetAtt [VPCStack, Outputs.PrivateSubnet3AID]]]
         VpcId: !GetAtt VPCStack.Outputs.VPCID
+        DesiredCapacity: !Ref DesiredCapacity
+        MaxSize: !Ref MaxSize
       Tags:
         - Key: StackName
           Value: !Sub ${StackName}-${Environment}
 
-  BatchStack:
+  ALBLogs:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/compute/batch.yml"
-      Parameters:
-        Environment: !Ref Environment
-        KeyPair: !Ref KeyPairName
-        VpcId: !GetAtt VPCStack.Outputs.VPCID
-        SubnetIds: !Join [ ",", [!GetAtt [VPCStack, Outputs.PrivateSubnet1AID], !GetAtt [VPCStack, Outputs.PrivateSubnet2AID], !GetAtt [VPCStack, Outputs.PrivateSubnet3AID]]]
-      Tags:
-        - Key: StackName
-          Value: !Sub ${StackName}-${Environment}
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/storage/alb-logs-s3.yml"
 
   PublicLoadBalancer:
     DependsOn:
@@ -336,32 +313,32 @@ Resources:
         - Key: LoadBalancer
           Value: Public
 
-  PrivateLoadBalancer:
-    DependsOn:
-      - EcsStack
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/applications/loadbalancer.yml"
-      Parameters:
-        LoadBalancerName: !Sub ${StackName}-${Environment}-private
-        Scheme: internal # internal or internet-facing
-        Domain: !Ref PrivateDomain # Always internal, public DNS are handle diferent
-        Environment: !Ref Environment
-        Certificate: !Ref Certificate
-        SubnetIds: !Join [ ",", [!GetAtt [VPCStack, Outputs.PrivateSubnet1AID], !GetAtt [VPCStack, Outputs.PrivateSubnet2AID], !GetAtt [VPCStack, Outputs.PrivateSubnet3AID]]]
-        VpcId: !GetAtt VPCStack.Outputs.VPCID
-      Tags:
-        - Key: StackName
-          Value: !Sub ${StackName}-${Environment}
-        - Key: LoadBalancer
-          Value: Private
+  # PrivateLoadBalancer:
+  #   DependsOn:
+  #     - EcsStack
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/applications/loadbalancer.yml"
+  #     Parameters:
+  #       LoadBalancerName: !Sub ${StackName}-${Environment}-private
+  #       Scheme: internal # internal or internet-facing
+  #       Domain: !Ref PrivateDomain # Always internal, public DNS are handle diferent
+  #       Environment: !Ref Environment
+  #       Certificate: !Ref Certificate
+  #       SubnetIds: !Join [ ",", [!GetAtt [VPCStack, Outputs.PrivateSubnet1AID], !GetAtt [VPCStack, Outputs.PrivateSubnet2AID], !GetAtt [VPCStack, Outputs.PrivateSubnet3AID]]]
+  #       VpcId: !GetAtt VPCStack.Outputs.VPCID
+  #     Tags:
+  #       - Key: StackName
+  #         Value: !Sub ${StackName}-${Environment}
+  #       - Key: LoadBalancer
+  #         Value: Private
 
-  AccountManagement:
+  ServiceA:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/applications/services.yml"
       Parameters:
-        ServiceName: "webapp-account-mgmt" # This name must match the 'services' template file YAML
+        ServiceName: "serviceA"
         Environment: !Ref Environment
         DesiredCount: !Ref DesiredCount
         Priority: '1' # LoadBalancer Priority, needs to be unique on the LB (Listener Rule Priority)
@@ -392,3 +369,40 @@ Resources:
       Tags:
         - Key: StackName
           Value: !Sub ${StackName}-${Environment}
+
+  # AccountManagement:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/applications/services.yml"
+  #     Parameters:
+  #       ServiceName: "webapp-account-mgmt" # This name must match the 'services' template file YAML
+  #       Environment: !Ref Environment
+  #       DesiredCount: !Ref DesiredCount
+  #       Priority: '1' # LoadBalancer Priority, needs to be unique on the LB (Listener Rule Priority)
+  #       Subdomain: !If
+  #         - RealProduction
+  #         - my
+  #         - !If
+  #           - ColdProduction
+  #           - my-cprod
+  #           - !Sub
+  #             - my.${env}
+  #             - env:
+  #                 Fn::FindInMap: [Environment, !Ref Environment, Name]
+  #       StackName: !Ref StackName
+  #       QSS3BucketName: !Ref QSS3BucketName
+  #       QSS3KeyPrefix: !Ref QSS3KeyPrefix
+  #       Cluster: !GetAtt EcsStack.Outputs.EcsCluster
+  #       ContainerPort: '7080'
+  #       MinimumHealthyPercent: !Ref MinimumHealthyPercent
+  #       ConfigBucket: !Ref ConfigBucket
+  #       VpcId: !GetAtt VPCStack.Outputs.VPCID
+  #       PrivateDNS: !GetAtt PublicLoadBalancer.Outputs.PrivateDNS
+  #       LoadBalancerHttpListenerArn: !GetAtt PublicLoadBalancer.Outputs.HttpListenerArn
+  #       LoadBalancerHttpsListenerArn: !GetAtt PublicLoadBalancer.Outputs.HttpsListenerArn
+  #       CanonicalHostedZoneID: !GetAtt PublicLoadBalancer.Outputs.CanonicalHostedZoneID
+  #       LoadBalancerDomain: !GetAtt PublicLoadBalancer.Outputs.LoadBalancerDomain
+  #       PrivateDomain: !GetAtt PublicLoadBalancer.Outputs.PrivateDomain
+  #     Tags:
+  #       - Key: StackName
+  #         Value: !Sub ${StackName}-${Environment}
