@@ -43,8 +43,7 @@ Outputs:
     Value: !Ref HttpListener
   HttpsListenerArn:
     Description: "HTTPS Listener ARN"
-    Value: !Ref HttpsListener
-    Condition: SslCertificateArnPresent
+    Value: !If [SslCertificateArnPresent, !Ref HttpsListener, "AWS::NoValue"]
   LoadBalancerArn:
     Description: "Load Balancer ARN"
     Value: !Ref LoadBalancer

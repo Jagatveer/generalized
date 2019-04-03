@@ -37,15 +37,16 @@ Metadata:
           - KeyPairName
           - MaxSize
       - Label:
-          default: "Security Configuration"
+          default: "Load balancer Configuration"
         Parameters:
           - Certificate
       - Label:
-          default: "Infrastructure Configuration"
+          default: "Service Configuration"
         Parameters:
-          - ConfigBucket
           - MinimumHealthyPercent
           - DesiredCount
+          - ContainerMemory
+          - ContainerCPU
 
   ParameterLabels:
     Certificate:
@@ -92,13 +93,14 @@ Metadata:
       default: "Amount of EC2 instances in the cluster (min 2)"
     PrivateDomain:
       default: "Private Domain"
-    ConfigBucket:
-      default: "Configuration bucket for ECS services"
     MinimumHealthyPercent:
       default: "Minimum Healthy Percent"
     DesiredCount:
       default: " Desrired Count"
-
+    ContainerMemory:
+      default: "Amount of RAM for a task running in the cluster"
+    ContainerCPU:
+      default: "Amount of CPU units for a task running in the cluster"
 
 Parameters:
   Certificate:
@@ -221,10 +223,6 @@ Parameters:
     Type: String
     Default: company-development.internal
 
-  ConfigBucket:
-    Type: String
-    Description: Configuration bucket for ECS services (if needed)
-    Default: development.config.company.com
   MinimumHealthyPercent:
     Type: Number
     Description: "Minimum Healthy Percent for ECS services"
@@ -237,6 +235,14 @@ Parameters:
     Default: 0
     MinValue: 0
     MaxValue: 100
+  ContainerMemory:
+    Type: String
+    Description: Ram memory allocation for a task running in the cluster.
+    Default: 512
+  ContainerCPU:
+    Type: String
+    Description: CPU units allocated for a task running in the cluster.
+    Default: 512
 
 Mappings:
   Environment:
@@ -334,6 +340,9 @@ Resources:
   #         Value: Private
 
   ServiceA:
+    DependsOn:
+      - PublicLoadBalancer
+      # - PrivateLoadBalancer
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/applications/services.yml"
@@ -342,23 +351,15 @@ Resources:
         Environment: !Ref Environment
         DesiredCount: !Ref DesiredCount
         Priority: '1' # LoadBalancer Priority, needs to be unique on the LB (Listener Rule Priority)
-        Subdomain: !If
-          - RealProduction
-          - my
-          - !If
-            - ColdProduction
-            - my-cprod
-            - !Sub
-              - my.${env}
-              - env:
-                  Fn::FindInMap: [Environment, !Ref Environment, Name]
+        Subdomain: !Sub
+          - my.${env}
+          - {env: !FindInMap [Environment, !Ref Environment, Name]}
         StackName: !Ref StackName
         QSS3BucketName: !Ref QSS3BucketName
         QSS3KeyPrefix: !Ref QSS3KeyPrefix
         Cluster: !GetAtt EcsStack.Outputs.EcsCluster
         ContainerPort: '7080'
         MinimumHealthyPercent: !Ref MinimumHealthyPercent
-        ConfigBucket: !Ref ConfigBucket
         VpcId: !GetAtt VPCStack.Outputs.VPCID
         PrivateDNS: !GetAtt PublicLoadBalancer.Outputs.PrivateDNS
         LoadBalancerHttpListenerArn: !GetAtt PublicLoadBalancer.Outputs.HttpListenerArn
@@ -366,43 +367,8 @@ Resources:
         CanonicalHostedZoneID: !GetAtt PublicLoadBalancer.Outputs.CanonicalHostedZoneID
         LoadBalancerDomain: !GetAtt PublicLoadBalancer.Outputs.LoadBalancerDomain
         PrivateDomain: !GetAtt PublicLoadBalancer.Outputs.PrivateDomain
+        ContainerMemory: !Ref ContainerMemory
+        ContainerCPU: !Ref ContainerCPU
       Tags:
         - Key: StackName
           Value: !Sub ${StackName}-${Environment}
-
-  # AccountManagement:
-  #   Type: AWS::CloudFormation::Stack
-  #   Properties:
-  #     TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/applications/services.yml"
-  #     Parameters:
-  #       ServiceName: "webapp-account-mgmt" # This name must match the 'services' template file YAML
-  #       Environment: !Ref Environment
-  #       DesiredCount: !Ref DesiredCount
-  #       Priority: '1' # LoadBalancer Priority, needs to be unique on the LB (Listener Rule Priority)
-  #       Subdomain: !If
-  #         - RealProduction
-  #         - my
-  #         - !If
-  #           - ColdProduction
-  #           - my-cprod
-  #           - !Sub
-  #             - my.${env}
-  #             - env:
-  #                 Fn::FindInMap: [Environment, !Ref Environment, Name]
-  #       StackName: !Ref StackName
-  #       QSS3BucketName: !Ref QSS3BucketName
-  #       QSS3KeyPrefix: !Ref QSS3KeyPrefix
-  #       Cluster: !GetAtt EcsStack.Outputs.EcsCluster
-  #       ContainerPort: '7080'
-  #       MinimumHealthyPercent: !Ref MinimumHealthyPercent
-  #       ConfigBucket: !Ref ConfigBucket
-  #       VpcId: !GetAtt VPCStack.Outputs.VPCID
-  #       PrivateDNS: !GetAtt PublicLoadBalancer.Outputs.PrivateDNS
-  #       LoadBalancerHttpListenerArn: !GetAtt PublicLoadBalancer.Outputs.HttpListenerArn
-  #       LoadBalancerHttpsListenerArn: !GetAtt PublicLoadBalancer.Outputs.HttpsListenerArn
-  #       CanonicalHostedZoneID: !GetAtt PublicLoadBalancer.Outputs.CanonicalHostedZoneID
-  #       LoadBalancerDomain: !GetAtt PublicLoadBalancer.Outputs.LoadBalancerDomain
-  #       PrivateDomain: !GetAtt PublicLoadBalancer.Outputs.PrivateDomain
-  #     Tags:
-  #       - Key: StackName
-  #         Value: !Sub ${StackName}-${Environment}

@@ -81,6 +81,14 @@ Parameters:
   PrivateDomain:
     Type: String
     Description: Private Domain.
+  ContainerMemory:
+    Type: String
+    Description: Ram memory allocation for a task running in the cluster.
+    Default: 512
+  ContainerCPU:
+    Type: String
+    Description: CPU units allocated for a task running in the cluster.
+    Default: 512
 
 Mappings:
   Environment:
@@ -90,10 +98,6 @@ Mappings:
       Name: staging
     production:
       Name: prod
-
-Conditions:
-  IsCraterLakeWeb: !Equals [!Ref ServiceName, "crater-lake-web"]
-  IsProduction: !Equals [!Ref Environment, "production"]
 
 Resources:
   ListenerStack:
@@ -118,112 +122,242 @@ Resources:
         - Key: StackName
           Value: !Ref StackName
 
-  ServiceDiscovery:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      HostedZoneId: !Ref PrivateDNS
-      Comment: Wilcard DNS for internal resolution
-      Name: !Sub "${Subdomain}.${PrivateDomain}."
-      Type: A
-      AliasTarget:
-        HostedZoneId: !Ref CanonicalHostedZoneID
-        DNSName: !Ref LoadBalancerDomain
-
-  ServiceDiscoverySLS:
-    Condition: IsCraterLakeWeb
-    Type: AWS::Route53::RecordSet
-    Properties:
-      HostedZoneId: !Ref PrivateDNS
-      Comment: Wilcard DNS for internal resolution
-      Name: !If
-        - IsProduction
-        - sls.${PrivateDomain}
-        - !Sub
-          - sls.${env}.${PrivateDomain}
-          - env:
-              Fn::FindInMap: [Environment, !Ref Environment, Name]
-      Type: A
-      AliasTarget:
-        HostedZoneId: !Ref CanonicalHostedZoneID
-        DNSName: !Ref LoadBalancerDomain
-
-  ServiceDiscoveryENROLL:
-    Condition: IsCraterLakeWeb
-    Type: AWS::Route53::RecordSet
-    Properties:
-      HostedZoneId: !Ref PrivateDNS
-      Comment: Wilcard DNS for internal resolution
-      Name: !If
-        - IsProduction
-        - enroll.${PrivateDomain}
-        - !Sub
-          - enroll.${env}.${PrivateDomain}
-          - env:
-              Fn::FindInMap: [Environment, !Ref Environment, Name]
-      Type: A
-      AliasTarget:
-        HostedZoneId: !Ref CanonicalHostedZoneID
-        DNSName: !Ref LoadBalancerDomain
-
-  ServiceDiscoverySAVINGSMATCH:
-    Condition: IsCraterLakeWeb
-    Type: AWS::Route53::RecordSet
-    Properties:
-      HostedZoneId: !Ref PrivateDNS
-      Comment: Wilcard DNS for internal resolution
-      Name: !If
-        - IsProduction
-        - savings-match.${PrivateDomain}
-        - !Sub
-          - savings-match.${env}.${PrivateDomain}
-          - env:
-              Fn::FindInMap: [Environment, !Ref Environment, Name]
-      Type: A
-      AliasTarget:
-        HostedZoneId: !Ref CanonicalHostedZoneID
-        DNSName: !Ref LoadBalancerDomain
-
-  ServiceDiscoveryENROLLPL:
-    Condition: IsCraterLakeWeb
-    Type: AWS::Route53::RecordSet
-    Properties:
-      HostedZoneId: !Ref PrivateDNS
-      Comment: Wilcard DNS for internal resolution
-      Name: !If
-        - IsProduction
-        - enroll-pl.${PrivateDomain}
-        - !Sub
-          - enroll-pl.${env}.${PrivateDomain}
-          - env:
-              Fn::FindInMap: [Environment, !Ref Environment, Name]
-      Type: A
-      AliasTarget:
-        HostedZoneId: !Ref CanonicalHostedZoneID
-        DNSName: !Ref LoadBalancerDomain
+  # ServiceDiscovery:
+  #   Type: AWS::Route53::RecordSet
+  #   Properties:
+  #     HostedZoneId: !Ref PrivateDNS
+  #     Comment: Wilcard DNS for internal resolution
+  #     Name: !Sub "${Subdomain}.${PrivateDomain}."
+  #     Type: A
+  #     AliasTarget:
+  #       HostedZoneId: !Ref CanonicalHostedZoneID
+  #       DNSName: !Ref LoadBalancerDomain
 
   TaskDefinition:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/services/task-definition.yml"
-      TimeoutInMinutes: 60
       Parameters:
         ServiceName: !Ref ServiceName
         StackName: !Ref StackName
         Environment: !Ref Environment
         ContainerPort: !Ref ContainerPort
-        ConfigBucket: !Ref ConfigBucket
+        ContainerMemory: !Ref ContainerMemory
+        ContainerCPU: !Ref ContainerCPU
 
   Service:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref Cluster
-      DesiredCount: !Ref DesiredCount
-      TaskDefinition: !GetAtt TaskDefinition.Outputs.TaskDefinition
+      ServiceName: !Ref ServiceName
+      Role: !Ref ServiceRole
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: !Ref MinimumHealthyPercent
+      DesiredCount: !Ref DesiredCount
+      HealthCheckGracePeriodSeconds: 60
       LoadBalancers:
         - ContainerName: !Sub ${ServiceName}-${Environment}
           ContainerPort: !Ref ContainerPort
           TargetGroupArn: !GetAtt ListenerStack.Outputs.TargetGroupArn
-      ServiceName: !Sub ${ServiceName}-${Environment}
+      TaskDefinition: !GetAtt TaskDefinition.Outputs.TaskDefinition
+      PlacementStrategies:
+        - Type: binpack
+          Field: cpu
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ServiceRole-${ServiceName}-${Environment}
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+
+  ScalableTargetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ScaleTargetRole-${ServiceName}-${Environment}
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - application-autoscaling.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: service-autoscaling
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'application-autoscaling:*'
+                  - 'cloudwatch:DescribeAlarms'
+                  - 'cloudwatch:PutMetricAlarm'
+                  - 'ecs:DescribeServices'
+                  - 'ecs:UpdateService'
+                  - 'cloudwatch:PutMetricAlarm'
+                  - 'cloudwatch:DescribeAlarms'
+                  - 'cloudwatch:GetMetricStatistics'
+                  - 'cloudwatch:SetAlarmState'
+                  - 'cloudwatch:DeleteAlarms'
+                Resource: '*'
+  ServiceScalableTarget:
+    DependsOn: Service
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: !Ref DesiredCount
+      MinCapacity: !Ref DesiredCount
+      ResourceId: !Join ['', [service/, !Ref Cluster, /, !Ref ServiceName]]
+      RoleARN: !GetAtt [ScalableTargetRole, Arn]
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+  ServiceUpStepPolicyCPU:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: CPUUtilization-step-up
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref ServiceScalableTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 30
+        MetricAggregationType: Average
+        StepAdjustments:
+          - MetricIntervalLowerBound: 0
+            ScalingAdjustment: 1
+  ServiceUpStepPolicyMEM:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: MemoryUtilization-step-up
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref ServiceScalableTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 30
+        MetricAggregationType: Average
+        StepAdjustments:
+          - MetricIntervalLowerBound: 0
+            ScalingAdjustment: 1
+  ServiceDownStepPolicyCPU:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: CPUUtilization-step-down
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref ServiceScalableTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 30
+        MetricAggregationType: Average
+        StepAdjustments:
+          - MetricIntervalUpperBound: 0
+            ScalingAdjustment: "-1"
+  ServiceDownStepPolicyMEM:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: MemoryUtilization-step-down
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref ServiceScalableTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 30
+        MetricAggregationType: Average
+        StepAdjustments:
+          - MetricIntervalUpperBound: 0
+            ScalingAdjustment: "-1"
+
+  ServiceCPUAlarmUp:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmName: !Sub "${ServiceName}-${Environment}-CPUUtilization-Up"
+      ActionsEnabled: true
+      AlarmActions:
+        - !Ref ServiceUpStepPolicyCPU
+      AlarmDescription: >
+        The CPU utilization of the Service has exeeded 90% for more than 1 minute.
+        Breaching this alarm should trigger an AutoScalingGroup to scale up.
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref Cluster
+        - Name: ServiceName
+          Value: !Ref ServiceName
+      EvaluationPeriods: 1
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Period: 60
+      Statistic: Average
+      Threshold: 65
+  ServiceCPUAlarmDown:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmName: !Sub "${ServiceName}-${Environment}-CPUUtilization-Down"
+      ActionsEnabled: true
+      AlarmActions:
+        - !Ref ServiceDownStepPolicyCPU
+      AlarmDescription: >
+        The CPU utilization of the Service cluster has dropped below 20% for more than 1 minute.
+        Breaching this alarm should trigger an AutoScalingGroup to scale up.
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref Cluster
+        - Name: ServiceName
+          Value: !Ref ServiceName
+      EvaluationPeriods: 60
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Period: 60
+      Statistic: Average
+      Threshold: 20
+  ServiceMemAlarmUp:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmName: !Sub "${ServiceName}-${Environment}-MemoryUtilization-Up"
+      ActionsEnabled: true
+      AlarmActions:
+        - !Ref ServiceUpStepPolicyMEM
+      AlarmDescription: >
+        The MemoryUtilization of the Service has exceeded 90% for more than 3 minutes.
+        Breaching this alarm should trigger an ASG scale out.
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref Cluster
+        - Name: ServiceName
+          Value: !Ref ServiceName
+      EvaluationPeriods: 1
+      MetricName: MemoryUtilization
+      Namespace: AWS/ECS
+      Period: 60
+      Statistic: Average
+      Threshold: 65
+  ServiceMemAlarmDown:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmName: !Sub "${ServiceName}-${Environment}-MemoryUtilization-Down"
+      ActionsEnabled: true
+      AlarmActions:
+        - !Ref ServiceDownStepPolicyMEM
+      AlarmDescription: >
+        The MemoryUtilization of the Service has dropped below 40% for more than 1 hour.
+        Breaching this alarm should trigger an ASG scale in.
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref Cluster
+        - Name: ServiceName
+          Value: !Ref ServiceName
+      EvaluationPeriods: 60
+      MetricName: MemoryUtilization
+      Namespace: AWS/ECS
+      Period: 60
+      Statistic: Average
+      Threshold: 12

@@ -14,9 +14,14 @@ Parameters:
   ContainerPort:
     Type: String
     Description: Port where the container is listening to.
-  ConfigBucket:
+  ContainerMemory:
     Type: String
-    Description: Configuration bucket.
+    Description: Ram memory allocation for a task running in the cluster.
+    Default: 512
+  ContainerCPU:
+    Type: String
+    Description: CPU units allocated for a task running in the cluster.
+    Default: 512
 
 Outputs:
   TaskDefinition:
@@ -58,7 +63,7 @@ Resources:
                   - kms:GetKeyRotationStatus
                   - kms:Decrypt
                 Resource:
-                  - *
+                  - "*"
 
   ECSLogGroup:
     Type: AWS::Logs::LogGroup
@@ -82,11 +87,10 @@ Resources:
               awslogs-group: !Sub /ecs/${ServiceName}-${Environment}
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
-          MemoryReservation: 512
+          Memory: !Ref ContainerMemory
+          Cpu: !Ref ContainerCPU
           Environment:
             - Name: AWS_REGION
               Value: !Ref AWS::Region
-            - Name: CONFIG_BUCKET_NAME
-              Value: !Ref ConfigBucket
             - Name: PORT
               Value: !Ref ContainerPort
