@@ -34,13 +34,13 @@ variable "private_subnets" {
 
 variable "rds_subnets" {
   type        = "list"
-  description = "List assignments for RDS"
+  description = "List CIDR assignments for RDS"
   default     = []
 }
 variable "elasticache_subnets" {
   type        = "map"
-  description = "Map of AWS availability zones (key) to subnet CIDR (value) assignments for Elasticache"
-  default     = {}
+  description = "List CIDR assignments for RDS"
+  default     = []
 }
 variable "vpc_to_connect" {
   type = "map"

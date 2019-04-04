@@ -84,14 +84,14 @@ resource "aws_subnet" "private_elasticache_subnets" {
   map_public_ip_on_launch = false
   tags = "${
     map(
-     "Name", "${var.environment}_${var.cluster_name}_private_es_${count.index}",
+     "Name", "${var.environment}_private_es_${count.index}",
     )
   }"
 }
 
 resource "aws_elasticache_subnet_group" "elasticache" {
-  count       = "${length(keys(var.elasticache_subnets)) > 0 ? 1 : 0}"
-  name        = "${var.environment}_${var.cluster_name}_es_subnet_group"
+  count       = "${length(var.elasticache_subnets) > 0 ? 1 : 0}"
+  name        = "${var.environment}-es-subnet-group"
   description = "ElastiCache subnet group"
   subnet_ids  = ["${aws_subnet.private_elasticache_subnets.*.id}"]
 }

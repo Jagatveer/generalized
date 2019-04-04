@@ -22,7 +22,7 @@ output "rds_subnet_group" {
 }
 
 output "es_subnet_group" {
-  value = ["${aws_elasticache_subnet_group.elasticache.*.name}"]
+  value = "${aws_elasticache_subnet_group.elasticache.0.name}"
 }
 
 output "private_route_table" {
