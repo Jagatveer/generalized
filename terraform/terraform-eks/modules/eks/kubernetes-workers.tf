@@ -167,3 +167,16 @@ resource "aws_autoscaling_group" "k8s-worker-auto-scale" {
     propagate_at_launch = true
   }
 }
+
+data "template_file" "configmap" {
+  template = "${file("${path.module}/templates/configmap.yaml.tpl")}"
+  vars {
+    workers_role = "${aws_iam_role.eks_worker_role.arn}"
+  }
+}
+resource "local_file" "configmap" {
+  content  = "${data.template_file.configmap.rendered}"
+  filename = "dist/1.configmap_${aws_eks_cluster.k8s.name}.yaml"
+  depends_on = ["null_resource.clean_dist"]
+}
+
