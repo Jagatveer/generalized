@@ -47,6 +47,29 @@ Metadata:
           - DesiredCount
           - ContainerMemory
           - ContainerCPU
+      - Label:
+          default: "RDS Configuration"
+        Parameters:
+          - DBName
+          - DBInstanceIdentifier
+          - MultiAZ
+          - StorageEncrypted
+          - KmsKeyId
+          - MasterUsername
+          - MasterUserPassword
+          - DBInstanceClass
+          - AllocatedStorage
+          - CreateReadReplica
+          - Environment
+          - DBSnapshotIdentifier
+          - Option
+          - Engine
+          - DBIngressPort
+          - DBEgressPort
+          - StorageType
+          - DefaultRDSPort
+          - CreationTimeout
+          - DBIpProtocol
 
   ParameterLabels:
     Certificate:
@@ -243,6 +266,119 @@ Parameters:
     Type: String
     Description: CPU units allocated for a task running in the cluster.
     Default: 512
+  DBName:
+    Type: String
+    Description: Name of database
+    Default: company-db
+  DBInstanceIdentifier:
+    Type: String
+    Description: Name of RDS instance
+    Default: company-rds
+  MultiAZ:
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+  StorageEncrypted:
+    Description: If you define a KmsKeyID you have to encrypt the storage.
+    Type: String
+    Default: false
+    AllowedValues:
+      - true
+      - false
+  KmsKeyId:
+    Type: String
+    Description: Master key that's used to decrypt the instance
+  MasterUsername:
+    Type: String
+    Description: Username for database
+    Default: root
+  MasterUserPassword:
+    Type: String
+    NoEcho: true
+    Description: Password for database
+    Default: company-password
+  DBInstanceClass:
+    Type: String
+    Description: Name of the compute and capacity classes of the database
+    Default: db.t2.small
+    AllowedValues:
+      - db.t2.small
+      - db.t2.medium
+      - db.t2.medium
+      - db.t2.large
+      - db.m4.large
+      - db.m4.xlarge
+      - db.c4.large
+      - db.c4.xlarge
+  AllocatedStorage:
+    Type: Number
+    Default: 20
+    Description: Storage size on disk in GB of RDS
+  CreateReadReplica:
+    Type: String
+    Description: Condition to create read replica
+    Default: false
+    AllowedValues:
+      - true
+      - false
+  DBSnapshotIdentifier:
+    Type: String
+  Option:
+    Type: String
+    Default: new
+    AllowedValues:
+      - new
+      - skip
+      - restore
+  Engine:
+    Type: String
+    Description: Engine used for RDS
+    Default: mysql
+    AllowedValues:
+      - mysql
+      - postgres
+      - mariadb
+      - aurora
+      - aurora-mysql
+      - aurora-postgresql
+      - oracle-ee
+      - oracle-se
+      - oracle-se1
+      - oracle-se2
+      - sqlserver-ee
+      - sqlserver-se
+      - sqlserver-ex
+      - sqlserver-web
+  DBIngressPort:
+    Type: Number
+    Description: Inbound port for RDS instance
+    Default: 3306
+  DBEgressPort:
+    Type: Number
+    Description: Outbound port for RDS instance
+    Default: 3306
+  StorageType:
+    Type: String
+    Description: Storage Type to be associated with the DB instance
+    Default: standard
+    AllowedValues:
+      - standard
+      - gp2
+      - io1
+  DefaultRDSPort:
+    Type: Number
+    Description: Default port for DB endpoint
+    Default: 3306
+  CreationTimeout:
+    Type: String
+    Description: Duration of timeout for DB instance creation
+    Default: PT24H
+  DBIpProtocol:
+    Type: String
+    Description: Protocol for security group
+    Default: tcp
 
 Mappings:
   Environment:
@@ -372,3 +508,32 @@ Resources:
       Tags:
         - Key: StackName
           Value: !Sub ${StackName}-${Environment}
+
+  StackDB:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/database/rds.yaml"
+      Parameters:
+        Environment: !Sub ${Environment}-db
+        VpcId: !GetAtt VPCStack.Outputs.VPCID
+        VPCSubnetsIds: !GetAtt VPCStack.Outputs.PrivateSubnetsList
+        VPCPrivateSG: !GetAtt EcsStack.Outputs.SecurityGroup
+        DBName: !Sub ${AWS::StackName}-db
+        DBInstanceIdentifier: !Sub ${AWS::StackName}-db-instance
+        Engine: !Ref Engine
+        MultiAZ: !Ref MultiAZ
+        StorageEncrypted: !Ref StorageEncrypted
+        KmsKeyId: !Ref KmsKeyId
+        MasterUsername: !Ref MasterUsername
+        MasterUserPassword: !Ref MasterUserPassword
+        DBInstanceClass: !Ref DBInstanceClass
+        AllocatedStorage: !Ref AllocatedStorage
+        CreateReadReplica: !Ref CreateReadReplica
+        DBSnapshotIdentifier: !Ref DBSnapshotIdentifier
+        Option: !Ref Option
+        DBIngressPort: !Ref DBIngressPort
+        DBEgressPort: !Ref DBEgressPort
+        DBIpProtocol: !Ref DBIpProtocol
+        StorageType: !Ref StorageType
+        DefaultRDSPort: !Ref DefaultRDSPort
+        CreationTimeout: !Ref CreationTimeout

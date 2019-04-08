@@ -85,7 +85,7 @@ Metadata:
       PublicSubnet2CIDR:
         default: "Public subnet 2 CIDR"
       PublicSubnet3CIDR:
-        default: Public subnet 3 CIDR"
+        default: "Public subnet 3 CIDR"
       PublicSubnet4CIDR:
         default: "Public subnet 4 CIDR"
       PublicSubnetTag1:
@@ -1377,3 +1377,6 @@ Outputs:
     Value: !Ref VPC
     Export:
       Name: !Sub "${AWS::StackName}-VPCID"
+  PrivateSubnetsList:
+    Description: A list of the private subnets
+    Value: !Join [ ",", [ !Ref PrivateSubnet1A, !Ref PrivateSubnet2A, !Ref PrivateSubnet3A ]]

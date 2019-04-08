@@ -1,0 +1,166 @@
+Description: RDS Resource
+
+Parameters:
+  VPCSubnetsIds:
+    Description: Choose which subnets this cluster should be deployed to
+    Type: List<AWS::EC2::Subnet::Id>
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  VPCPrivateSG:
+    Type: String
+  DBName:
+    Type: String
+  DBInstanceIdentifier:
+    Type: String
+  MultiAZ:
+    Type: String
+  StorageEncrypted:
+    Type: String
+  KmsKeyId:
+    Type: String
+  MasterUsername:
+    Type: String
+  MasterUserPassword:
+    Type: String
+  DBInstanceClass:
+    Type: String
+  AllocatedStorage:
+    Type: Number
+  CreateReadReplica:
+    Type: String
+  Environment:
+    Type: String
+  DBSnapshotIdentifier:
+    Type: String
+  Option:
+    Type: String
+  Engine:
+    Type: String
+  DBIngressPort:
+    Type: Number
+  DBEgressPort:
+    Type: Number
+  StorageType:
+    Type: String
+  DefaultRDSPort:
+    Type: Number
+  CreationTimeout:
+    Type: String
+  DBIpProtocol:
+    Type: String
+  
+Conditions:
+  SkipRDS: !Equals [!Ref Option, "skip"]
+  CreateRDS: !Equals [!Ref Option, "new" ]
+  RestoreRDS: !Equals [!Ref Option, "restore"]
+  ExistRDS: !Or
+    - !Condition CreateRDS
+    - !Condition RestoreRDS
+  CreateReplica: !And
+    - !Equals [!Ref CreateReadReplica, "true"]
+    - !Condition ExistRDS
+  NotEncrypted: !Equals [ !Ref KmsKeyId, ""]
+Resources:
+  DatabaseSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${Environment} database SG"
+      GroupDescription: !Sub ${AWS::StackName} database
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+          #MySql
+        - SourceSecurityGroupId: !Ref VPCPrivateSG
+          FromPort: !Ref DBIngressPort
+          IpProtocol: !Ref DBIpProtocol
+          ToPort: !Ref DBEgressPort
+      Tags:
+        - Key: StackName
+          Value: !Ref AWS::StackName
+        - Key: Name
+          Value: !Sub "${Environment} database SG"
+  DBSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties:
+      DBSubnetGroupDescription: "RDS Subnet Group"
+      SubnetIds: !Ref VPCSubnetsIds
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment} database Subnet Group"
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Condition: CreateRDS
+    Properties:
+      # DBName: !Ref DBName
+      DBInstanceIdentifier: !Ref DBInstanceIdentifier
+      StorageType: !Ref StorageType
+      Engine: !Ref Engine
+      MultiAZ: !Ref MultiAZ
+      StorageEncrypted: !If
+        - NotEncrypted
+        - !Ref AWS::NoValue
+        - !Ref StorageEncrypted
+      KmsKeyId: !If
+        - NotEncrypted
+        - !Ref AWS::NoValue
+        - !Ref KmsKeyId
+      MasterUsername: !Ref MasterUsername
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: !Ref AllocatedStorage
+      MasterUserPassword: !Ref MasterUserPassword
+      VPCSecurityGroups: [ !Ref DatabaseSG ]
+      DBSubnetGroupName:
+        Ref: "DBSubnetGroup"
+      Tags:
+        - Key: Name
+          Value: !Ref DBName
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: !Ref CreationTimeout
+  DBInstanceSnap:
+    Type: AWS::RDS::DBInstance
+    Condition: RestoreRDS
+    Properties:
+      StorageType: !Ref StorageType
+      AllocatedStorage: !Ref AllocatedStorage
+      AutoMinorVersionUpgrade: true
+      CopyTagsToSnapshot: true
+      DBInstanceClass: !Ref DBInstanceClass
+      DBInstanceIdentifier: !Ref DBInstanceIdentifier
+      DBSnapshotIdentifier: !Ref DBSnapshotIdentifier
+      DeletionProtection: true
+      Engine: !Ref Engine
+      MultiAZ: !Ref MultiAZ
+      VPCSecurityGroups: [ !Ref DatabaseSG ]
+      DBSubnetGroupName:
+        Ref: "DBSubnetGroup"
+      Tags:
+        - Key: Name
+          Value: !Ref DBName
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: !Ref CreationTimeout
+  ReplicaDB:
+    DeletionPolicy: Delete
+    Type: AWS::RDS::DBInstance
+    Condition: CreateReplica
+    Properties:
+      SourceDBInstanceIdentifier: !If
+        - CreateRDS
+        - !Ref DBInstance
+        - !Ref DBInstanceSnap
+      DBInstanceIdentifier: !Sub ${DBInstanceIdentifier}-replica
+      DBInstanceClass: !Ref DBInstanceClass
+      StorageType: !Ref StorageType
+      Tags:
+      - Key: Name
+        Value: !Sub '${DBName}-replica'
+Outputs:
+  DBEndpointAddress:
+    Description: Endpoint for the instance
+    Value: !If
+      - SkipRDS
+      - !Ref Option
+      - !If [CreateRDS, !GetAtt DBInstance.Endpoint.Address, !GetAtt DBInstanceSnap.Endpoint.Address]
+  DBEndpointPort:
+    Description: Port for the instance
+    Value: !If [CreateRDS, !GetAtt DBInstance.Endpoint.Port, !Ref DefaultRDSPort]
