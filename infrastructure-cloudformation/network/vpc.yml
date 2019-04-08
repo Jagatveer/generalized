@@ -1380,3 +1380,6 @@ Outputs:
   PrivateSubnetsList:
     Description: A list of the private subnets
     Value: !Join [ ",", [ !Ref PrivateSubnet1A, !Ref PrivateSubnet2A, !Ref PrivateSubnet3A ]]
+  CacheSubnets:
+    Description: A list of the private subnets
+    Value: !Join [ ",", [ !Ref PrivateSubnet1A, !Ref PrivateSubnet2A ]]

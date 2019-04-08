@@ -70,6 +70,15 @@ Metadata:
           - DefaultRDSPort
           - CreationTimeout
           - DBIpProtocol
+      - Label:
+          default: "Cache Configuration"
+        Parameteres:
+          - CacheNodeType
+          - MultiAZSupport
+          - NumCacheClusters
+          - RedisPort
+          - ReplicationGroupDescription
+          - CacheIpProtocol
 
   ParameterLabels:
     Certificate:
@@ -379,6 +388,58 @@ Parameters:
     Type: String
     Description: Protocol for security group
     Default: tcp
+  CacheNodeType:
+    Description: The instance type the nodes will launch under.
+    Type: String
+    Default: cache.t2.small
+    AllowedValues:
+      - cache.t2.micro
+      - cache.t2.small
+      - cache.t2.medium
+      - cache.m3.medium
+      - cache.m3.large
+      - cache.m3.xlarge
+      - cache.m3.2xlarge
+      - cache.r3.large
+      - cache.r3.xlarge
+      - cache.r3.2xlarge
+      - cache.r3.4xlarge
+      - cache.r3.8xlarge
+  MultiAZSupport:
+    Description: >-
+      Indicates whether Multi-AZ is enabled. When Multi-AZ is enabled, a
+      read-only replica is automatically promoted to a read-write primary
+      cluster if the existing primary cluster fails. If you specify true, you
+      must specify a value greater than 1 for the NumCacheClusters property.
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  NumCacheClusters:
+    Description: >-
+      The number of cache clusters for this replication group. If MultiAZ
+      support is enabled, you must specify a value greater than 1.
+    Default: '2'
+    Type: Number
+    MinValue: '1'
+    MaxValue: '6'
+  RedisPort:
+    Description: >-
+      The port number on which each member of the replication group accepts
+      connections.
+    Type: Number
+    Default: '6379'
+    MinValue: '1'
+    MaxValue: '65535'
+  ReplicationGroupDescription:
+    Description: The description of the replication group.
+    Type: String
+    Default: Example replication group
+  CacheIpProtocol:
+    Description: Cache Security Group Protocol
+    Default: tcp
+    Type: String
 
 Mappings:
   Environment:
@@ -537,3 +598,19 @@ Resources:
         StorageType: !Ref StorageType
         DefaultRDSPort: !Ref DefaultRDSPort
         CreationTimeout: !Ref CreationTimeout
+
+  StackElasticache:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/database/elasticache.yaml"
+      Parameters:
+        CacheNodeType: !Ref CacheNodeType
+        MultiAZSupport: !Ref MultiAZSupport
+        NumCacheClusters: !Ref NumCacheClusters
+        RedisPort: !Ref RedisPort
+        ReplicationGroupDescription: !Ref ReplicationGroupDescription
+        VpcId: !GetAtt VPCStack.Outputs.VPCID
+        VPCPrivateSG: !GetAtt EcsStack.Outputs.SecurityGroup
+        SubnetIds: !GetAtt VPCStack.Outputs.CacheSubnets
+        Environment: !Sub ${Environment}-cache
+        CacheIpProtocol: !Ref CacheIpProtocol
