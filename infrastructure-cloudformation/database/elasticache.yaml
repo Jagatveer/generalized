@@ -28,6 +28,7 @@ Parameters:
   ReplicationGroupDescription:
     Description: The description of the replication group.
     Type: String
+    Default: Example replication group
   VpcId:
     Description: The VPC to create this ReplicationGroup under
     Type: 'AWS::EC2::VPC::Id'

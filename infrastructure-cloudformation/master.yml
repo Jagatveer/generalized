@@ -60,7 +60,6 @@ Metadata:
           - DBInstanceClass
           - AllocatedStorage
           - CreateReadReplica
-          - Environment
           - DBSnapshotIdentifier
           - Option
           - Engine
@@ -77,8 +76,18 @@ Metadata:
           - MultiAZSupport
           - NumCacheClusters
           - RedisPort
-          - ReplicationGroupDescription
           - CacheIpProtocol
+      - Label:
+          default: "Cloudfront Configuration"
+        Parameters:
+          - MinTTL
+          - MaxTTL
+          - ViewerProtocolPolicy
+          - CFEnabled
+          - HttpVersion
+          - IPV6Enabled
+          - PriceClass
+          - RestrictionType
 
   ParameterLabels:
     Certificate:
@@ -412,10 +421,10 @@ Parameters:
       cluster if the existing primary cluster fails. If you specify true, you
       must specify a value greater than 1 for the NumCacheClusters property.
     Type: String
-    Default: 'true'
+    Default: true
     AllowedValues:
-      - 'true'
-      - 'false'
+      - true
+      - false
   NumCacheClusters:
     Description: >-
       The number of cache clusters for this replication group. If MultiAZ
@@ -432,14 +441,49 @@ Parameters:
     Default: '6379'
     MinValue: '1'
     MaxValue: '65535'
-  ReplicationGroupDescription:
-    Description: The description of the replication group.
-    Type: String
-    Default: Example replication group
   CacheIpProtocol:
     Description: Cache Security Group Protocol
     Default: tcp
     Type: String
+  MinTTL:
+    Type: Number
+    Description: Minimum amount of time objects stay in cache
+    Default: 0
+  MaxTTL:
+    Type: Number
+    Description: Maximum amount of time objects stay in cache
+    Default: 86400
+  ViewerProtocolPolicy:
+    Type: String
+    Description: Protocol used to access files in origin
+    Default: allow-all
+    AllowedValues:
+      - redirect-to-https
+      - allow-all
+      - https-only
+  HttpVersion:
+    Type: String
+    Description: http version used to communicate to CF
+    Default: http1.1
+    AllowedValues:
+      - http1.1
+      - http2
+  PriceClass:
+    Type: String
+    Description: Price Class corresponding to CF
+    Default: PriceClass_All
+    AllowedValues:
+      - PriceClass_100
+      - PriceClass_200
+      - PriceClass_All
+  RestrictionType:
+    Type: String
+    Description: Ways to restrict content access based on location
+    Default: none
+    AllowedValues:
+      - none
+      - blacklist
+      - whitelist
 
 Mappings:
   Environment:
@@ -608,9 +652,22 @@ Resources:
         MultiAZSupport: !Ref MultiAZSupport
         NumCacheClusters: !Ref NumCacheClusters
         RedisPort: !Ref RedisPort
-        ReplicationGroupDescription: !Ref ReplicationGroupDescription
         VpcId: !GetAtt VPCStack.Outputs.VPCID
         VPCPrivateSG: !GetAtt EcsStack.Outputs.SecurityGroup
         SubnetIds: !GetAtt VPCStack.Outputs.CacheSubnets
         Environment: !Sub ${Environment}-cache
         CacheIpProtocol: !Ref CacheIpProtocol
+
+  StackCF:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/storage/cloudfront.yaml"
+      Parameters:
+        Environment: !Sub ${Environment}-CF
+        MinTTL: !Ref MinTTL
+        MaxTTL: !Ref MaxTTL
+        ViewerProtocolPolicy: !Ref ViewerProtocolPolicy
+        HttpVersion: !Ref HttpVersion
+        PriceClass: !Ref PriceClass
+        RestrictionType: !Ref RestrictionType
+        Certificate: !Ref Certificate

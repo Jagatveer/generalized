@@ -1,0 +1,126 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  Environment:
+    Type: String
+  MinTTL:
+    Type: Number
+  MaxTTL:
+    Type: Number
+  ViewerProtocolPolicy:
+    Type: String
+  CFEnabled:
+    Type: String
+    Description: Controls whether distribution is enabled
+    Default: true
+    AllowedValues:
+      - true
+      - false
+  HttpVersion:
+    Type: String
+  IPV6Enabled:
+    Type: String
+    Description: Choice to enable IPV6 DNS for CF
+    Default: false
+    AllowedValues:
+      - true
+      - false
+  PriceClass:
+    Type: String
+  RestrictionType:
+    Type: String
+  CFCompress:
+    Type: String
+    Description: Compress files for cache behaviour
+    Default : false
+    AllowedValues:
+      - true
+      - false
+  DefaultTTL:
+    Type: Number
+    Description: Amount of time objects stay in CF caches before forwarding
+    Default: 0
+  CookieForward:
+    Type: String
+    Description: Cookies to forward to origin of cache behaviour
+    Default: none
+    AllowedValues:
+      - none
+      - all
+      - whitelist
+  QueryString:
+    Type: String
+    Description: Choice to forward query strings associated with cache behaviour to origin
+    Default: false
+    AllowedValues:
+      - true
+      - false
+  Certificate:
+    Type: String
+
+Resources:
+  CFBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketName: company-cf-bucket
+    DeletionPolicy: Delete
+
+  CFBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: CFBucket
+      PolicyDocument:
+        Statement:
+        - Principal: "*"
+          Action: "s3:*"
+          Effect: "Allow"
+          Resource: "arn:aws:s3:::company-cf-bucket/*"
+
+  CFOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: AWS S3 Bucket only through CloudFront
+
+  CFOriginDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: CFBucketPolicy
+    Properties:
+      DistributionConfig:
+        Aliases: [ "shanux.com" ]
+        Origins:
+        - DomainName: !GetAtt CFBucket.DomainName
+          Id: companyCFOrigin
+          S3OriginConfig:
+            OriginAccessIdentity:
+              !Join
+              - ""
+              - - 'origin-access-identity/cloudfront/'
+                - !Ref CFOriginAccessIdentity
+        DefaultCacheBehavior:
+          AllowedMethods: ["GET", "HEAD"]
+          CachedMethods: ["GET", "HEAD"]
+          Compress: !Ref CFCompress
+          DefaultTTL: !Ref DefaultTTL
+          ForwardedValues:
+            Cookies:
+              Forward: !Ref CookieForward
+            Headers: ["Origin"]
+            QueryString: !Ref QueryString
+          MinTTL: !Ref MinTTL
+          MaxTTL: !Ref MaxTTL
+          TargetOriginId: companyCFOrigin
+          ViewerProtocolPolicy: !Ref ViewerProtocolPolicy
+        Comment: !Sub "Distribution ${Environment} with an ELB Origin"
+        Enabled: !Ref CFEnabled
+        HttpVersion: !Ref HttpVersion
+        IPV6Enabled: !Ref IPV6Enabled
+        PriceClass: !Ref PriceClass
+        Restrictions:
+          GeoRestriction:
+            RestrictionType: !Ref RestrictionType
+        ViewerCertificate:
+          AcmCertificateArn: !Ref Certificate
+          SslSupportMethod: sni-only
