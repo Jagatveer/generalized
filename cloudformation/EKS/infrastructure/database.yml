@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Resources to create a Postgres RDS Instance
+  This parameters must exists befor creating the stack
+  /L2-Demo/DB_USER
+  /L2-Demo/DB_PASSWORD 
+
+Parameters:
+  DBClass:
+    Description: DataBase Class
+    Type: String
+    Default: db.t2.small
+  DBAllocatedStorage:
+    Description: The amount of storage (in GB) to allocate to the DB Instance.
+    Type: Number
+  VPCId:
+    Description: VPC Id
+    Type: AWS::EC2::VPC::Id
+  SubnetIds:
+    Type: CommaDelimitedList
+  Environment:
+    Type: String
+    Default: Dev
+    AllowedValues: [Prod, Stage, Dev]
+  StackName:
+    Type: String
+    Description: This name will be used to named the resources
+  EC2SecurityGroup:
+    Type: String
+
+Resources:
+  DBKey:
+    Type: AWS::KMS::Key
+    Properties:
+      KeyPolicy:
+        Version: "2012-10-17"
+        Id: key-default-1
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Join 
+                - ''
+                - - 'arn:aws:iam::'
+                  - !Ref 'AWS::AccountId'
+                  - ':root'
+            Action: 'kms:*'
+            Resource: '*'
+
+  DBEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open database for access
+      VpcId: !Ref VPCId
+      Tags:
+        - Key: StackName
+          Value: !Sub ${StackName}-${Environment}
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Name
+          Value: !Sub ${StackName}-RDS-sg
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: -1
+          IpProtocol: '-1'
+          ToPort: -1
+
+  SGBaseIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref DBEC2SecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref EC2SecurityGroup
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: postgres
+      MultiAZ: true
+      MasterUsername: '{{resolve:ssm:/L2-Demo/DB_USER:2}}'
+      DBInstanceClass: !Ref DBClass
+      DBSubnetGroupName: !Ref SubnetGroup
+      DBInstanceIdentifier: !Sub ${StackName}-${Environment}
+      AllocatedStorage: !Ref DBAllocatedStorage
+      MasterUserPassword: '{{resolve:ssm-secure:/L2-Demo/DB_PASSWORD:1}}'
+      DeletionProtection: true
+      PubliclyAccessible: false
+      VPCSecurityGroups:
+        - !Ref DBEC2SecurityGroup
+      StorageType: 'gp2'
+      BackupRetentionPeriod: '30'
+      PreferredBackupWindow: '21:30-22:00'
+      PreferredMaintenanceWindow: 'sun:00:00-sun:00:30'
+      StorageEncrypted: true
+      CopyTagsToSnapshot: true
+      StorageEncrypted: true
+      KmsKeyId: !GetAtt DBKey.Arn
+      Tags:
+        - Key: StackName
+          Value: !Sub ${StackName}-${Environment}
+        - Key: Environment
+          Value: !Ref Environment
+
+  SubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Ref AWS::StackName
+      SubnetIds: !Ref SubnetIds
+
+Outputs:
+  DBEndpoint:
+    Description: DataBase Endpoint
+    Value: !GetAtt DBInstance.Endpoint.Address

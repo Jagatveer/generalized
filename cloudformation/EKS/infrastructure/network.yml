@@ -1,0 +1,278 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Resources for a VPC and routing
+  It includes a VPC with two public subnets and two private subnets,
+  an ACL for the subets and a NAT gateway for internet access on the private
+  subnets
+Parameters:
+  VpcCIDR:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: IPV4 CIDR block for the VPC
+    AllowedPattern: "(\\d{1,3}\\.){3}\\d{1,3}/(\\d{1,2})"
+    ConstraintDescription: You must enter a valid CIDR string
+  SetNatGateway:
+    Description: Set to true to deploy the Nat Gateway
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+    ConstraintDescription: Value must be true or false
+  Environment:
+    Type: String
+    Default: Dev
+    AllowedValues: [Prod, Stage, Dev]
+  StackName:
+    Type: String
+    Description: Stack name to prefix some resource names
+Conditions:
+  CreateNatGateway: !Equals [ !Ref SetNatGateway, true ]
+Resources:
+  ############# Network #############
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackName}-VPC
+        - Key: Environment
+          Value: !Sub ${StackName}-${Environment}
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [0, !Cidr [!Ref VpcCIDR, 4, 8]]
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [ 0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackName}-PublicSubnet1
+        - Key: Environment
+          Value: !Sub ${StackName}-${Environment}
+    DependsOn: VPC
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [1, !Cidr [!Ref VpcCIDR, 4, 8]]
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [ 1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackName}-PublicSubnet2
+        - Key: Environment
+          Value: !Sub ${StackName}-${Environment}
+    DependsOn: VPC
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [2, !Cidr [!Ref VpcCIDR, 4, 8]]
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select [ 0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackName}-PrivateSubnet1
+        - Key: Environment
+          Value: !Sub ${StackName}-${Environment}
+    DependsOn: VPC
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [3, !Cidr [!Ref VpcCIDR, 4, 8]]
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select [ 1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackName}-PrivateSubnet2
+        - Key: Environment
+          Value: !Sub ${StackName}-${Environment}
+    DependsOn: VPC
+  ############# Routing #############
+  IGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-IGW
+    DependsOn: VPC
+  IGWAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref IGW
+      VpcId: !Ref VPC
+    DependsOn: IGW
+  PublicRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackName}-PublicRT
+        - Key: Environment
+          Value: !Sub ${StackName}-${Environment}
+    DependsOn: VPC
+  PrivateRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackName}-PrivateRT
+        - Key: Environment
+          Value: !Sub ${StackName}-${Environment}
+    DependsOn: VPC
+  RouteToIGW:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref PublicRT
+      GatewayId: !Ref IGW
+    DependsOn:
+      - PublicRT
+      - IGWAttach
+  PublicSubnet1RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PublicRT
+      SubnetId: !Ref PublicSubnet1
+    DependsOn:
+      - PublicRT
+      - PublicSubnet1
+  PublicSubnet2RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PublicRT
+      SubnetId: !Ref PublicSubnet2
+    DependsOn:
+      - PublicRT
+      - PublicSubnet2
+  PrivateSubnet1RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PrivateRT
+      SubnetId: !Ref PrivateSubnet1
+    DependsOn:
+      - PrivateRT
+      - PrivateSubnet1
+  PrivateSubnet2RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PrivateRT
+      SubnetId: !Ref PrivateSubnet2
+    DependsOn:
+      - PrivateRT
+      - PrivateSubnet2
+  ########## NAT Resources ##########
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    Condition: CreateNatGateway
+    Properties:
+      Domain: vpc
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Condition: CreateNatGateway
+    Properties: 
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags: 
+        - Key: Name
+          Value: !Sub ${StackName}-NAT
+        - Key: Environment
+          Value: !Sub ${StackName}-${Environment}
+    DependsOn:
+      - IGWAttach
+      - NatGatewayEIP
+  RouteToNAT:
+    Type: AWS::EC2::Route
+    Condition: CreateNatGateway
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref PrivateRT
+      NatGatewayId: !Ref NatGateway
+    DependsOn:
+      - PrivateRT
+      - NatGateway
+  ### Network Access Control Lists ###
+  ACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackName}-ACL
+        - Key: Environment
+          Value: !Sub ${StackName}-${Environment}
+    DependsOn: VPC
+  AllowAllInboundTrafic:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref ACL
+      CidrBlock: 0.0.0.0/0
+      RuleNumber: 10
+      RuleAction: Allow
+      Egress: false
+      Protocol: -1
+    DependsOn: ACL
+  AllowAllOutboundTrafic:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref ACL
+      CidrBlock: 0.0.0.0/0
+      RuleNumber: 10
+      RuleAction: Allow
+      Egress: true
+      Protocol: -1
+    DependsOn: ACL
+  PrivateSubnet1ACLAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      NetworkAclId: !Ref ACL
+    DependsOn:
+      - ACL
+      - PrivateSubnet1
+  PrivateSubnet2ACLAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      NetworkAclId: !Ref ACL
+    DependsOn:
+      - ACL
+      - PrivateSubnet2
+Outputs:
+  VpcId:
+    Value: !Ref VPC
+    Export:
+      Name: !Sub ${StackName}-${Environment}:VpcId
+  PublicSubnetsIds:
+    Description: A list of the public subnets
+    Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ]]
+    Export:
+      Name: !Sub ${StackName}-${Environment}:PublicSubnetIds
+  PrivateSubnetsIds:
+    Description: A list of the private subnets
+    Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
+    Export:
+      Name: !Sub ${StackName}-${Environment}:PrivateSubnetIds
+  PublicSubnet1Id:
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub ${StackName}-${Environment}:PublicSubnet1Id
+  PublicSubnet2Id:
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub ${StackName}-${Environment}:PublicSubnet2Id
+  PrivateSubnet1Id:
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub ${StackName}-${Environment}:PrivateSubnet1Id
+  PrivateSubnet2Id:
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub ${StackName}-${Environment}:PrivateSubnet2Id
+   

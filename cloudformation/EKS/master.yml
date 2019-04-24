@@ -1,0 +1,253 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  EKS Cluster
+Parameters:
+  Certificate:
+    Type: String
+    Default: ""
+    Description: SSL Certificate ARN
+  KeyPair:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: ronaldo
+    Description: Key pair to connect to the instances
+  S3BucketName:
+    Type: String
+    Default: l2-demo
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
+    ConstraintDescription: Bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).
+    Description: S3 bucket name for the CF assets. Bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).
+  S3KeyPrefix:
+    Type: String
+    Default: L2-Demo
+    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    Description: S3 key prefix for the CF assets. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with a hyphen (-).
+  Environment:
+    Type: String
+    Default: Dev
+    AllowedValues: [Prod, Stage, Dev]
+Resources: 
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/network.yml"
+      Parameters:
+        VpcCIDR: 10.0.0.0/16
+        SetNatGateway: true
+        Environment: !Ref Environment
+        StackName: !Ref AWS::StackName
+      Tags:
+        - Key: Environment
+          Value: !Sub ${AWS::StackName}-${Environment}
+  EKS:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/eks-cluster.yml"
+      Parameters:
+        VpcId: !GetAtt VPC.Outputs.VpcId
+        Subnets: !Join [",", [ !GetAtt VPC.Outputs.PublicSubnetsIds, !GetAtt VPC.Outputs.PrivateSubnetsIds ] ]
+        KeyName: !Ref KeyPair
+        ClusterName: L2-Demo-EKS
+        NodeInstanceType: t2.small
+        # NodeImageId:
+        DesiredCapacity: 2
+        MinSize: 1
+        MaxSize: 3
+        MinInstancesInService: 1
+        NodeVolumeSize: 20
+        BootstrapArguments: ""
+        Environment: !Ref Environment
+        StackName: !Ref AWS::StackName
+      Tags:
+        - Key: Environment
+          Value: !Sub ${AWS::StackName}-${Environment}
+  # S3Bucket:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/datastore/s3.yml"
+  #     Parameters:
+  #       StackName: !Ref AWS::StackName
+  #       Environment: !Ref Environment
+  #     Tags:
+  #       - Key: Environment
+  #         Value: !Sub ${AWS::StackName}-${Environment}
+  # ALB:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/load-balancers.yml"
+  #     Parameters:
+  #       VpcId: !GetAtt VPC.Outputs.VPCID
+  #       SubnetsIds: !Join [ ",", [!GetAtt VPC.Outputs.PublicSubnet1ID, !GetAtt VPC.Outputs.PublicSubnet2ID]]
+  #       CertificateArn: !Ref Certificate
+  #       S3BucketLogs: !GetAtt S3Bucket.Outputs.BucketName
+  #       StackName: !Ref AWS::StackName
+  #       Environment: !Ref Environment
+  #     Tags:
+  #       - Key: Environment
+  #         Value: !Sub ${AWS::StackName}-${Environment}
+  # ECS:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/ecs-cluster.yml"
+  #     Parameters:
+  #       VpcId: !GetAtt VPC.Outputs.VPCID
+  #       SubnetsIds: !Join [ ",", [!GetAtt VPC.Outputs.PrivateSubnet1AID, !GetAtt VPC.Outputs.PrivateSubnet2AID]]
+  #       ALBSecurityGroup: !GetAtt ALB.Outputs.SecurityGroupId
+  #       ALBDNS: !GetAtt ALB.Outputs.LoadBalancerDomain
+  #       ClusterName: L2-Demo-App
+  #       # DataDogAPIKey: !Ref DataDogAPIKey
+  #       InstanceType: t2.small
+  #       # ECSAMI:
+  #       DesiredCapacity: 1
+  #       MinSize: 1
+  #       MaxSize: 3
+  #       MinInstancesInService: 1
+  #       MaxBatchSize: 2
+  #       PauseTime: PT5M
+  #       KeyPair: !Ref KeyPair        
+  #       Environment: !Ref Environment
+  #       StackName: !Ref AWS::StackName
+  #     Tags:
+  #       - Key: Environment
+  #         Value: !Sub ${AWS::StackName}-${Environment}
+  #   DependsOn:
+  #     - VPC  
+  # BlueAppService:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/service.yml"
+  #     Parameters:
+  #       VpcId: !GetAtt VPC.Outputs.VPCID
+  #       Cluster: !GetAtt ECS.Outputs.Cluster
+  #       DesiredCount: 1
+  #       HttpListenerArn: !GetAtt ALB.Outputs.BlueHttpListenerArn
+  #       AlternateHttpListenerArn: !GetAtt ALB.Outputs.GreenHttpListenerArn
+  #       HttpsListenerArn: "" #!GetAtt ALB.Outputs.HttpsListenerArn
+  #       RepositoryName: goapp
+  #       ImageTag: latest
+  #       ContainerPort: 8080
+  #       DBEndpoint: !GetAtt DB.Outputs.DBEndpoint
+  #       Environment: !Ref Environment
+  #       StackName: !Ref AWS::StackName
+  #       # DataDogAPIKey: !Ref DataDogAPIKey
+  #     Tags:
+  #       - Key: Environment
+  #         Value: !Sub ${AWS::StackName}-${Environment}
+  #   DependsOn:
+  #     - DB
+  # GreenAppService:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/service.yml"
+  #     Parameters:
+  #       VpcId: !GetAtt VPC.Outputs.VPCID
+  #       Cluster: !GetAtt ECS.Outputs.Cluster
+  #       DesiredCount: 1
+  #       HttpListenerArn: !GetAtt ALB.Outputs.GreenHttpListenerArn
+  #       AlternateHttpListenerArn: !GetAtt ALB.Outputs.BlueHttpListenerArn
+  #       HttpsListenerArn: "" #!GetAtt ALB.Outputs.HttpsListenerArn
+  #       RepositoryName: goapp
+  #       ImageTag: latest
+  #       ContainerPort: 8080
+  #       DBEndpoint: !GetAtt DB.Outputs.DBEndpoint
+  #       Environment: !Ref Environment
+  #       StackName: !Ref AWS::StackName
+  #       # DataDogAPIKey: !Ref DataDogAPIKey
+  #     Tags:
+  #       - Key: Environment
+  #         Value: !Sub ${AWS::StackName}-${Environment}
+  #   DependsOn:
+  #     - DB
+  # DDService:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/ddservice.yml"
+  #     Parameters:
+  #       Cluster: !GetAtt ECS.Outputs.Cluster
+  #       RepositoryName: datadog/agent
+  #       Family: datadog
+  #       ImageTag: latest
+  #       # DataDogAPIKey: 
+  #       Environment: !Ref Environment
+  #       StackName: !Ref AWS::StackName
+  #     Tags:
+  #       - Key: Environment
+  #         Value: !Sub ${AWS::StackName}-${Environment}
+  #   DependsOn:
+  #     - DB
+
+  # Parameters /L2-Demo/DB_USER and /L2-Demo/DB_PASSWORD must exist on SSM
+  DB:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Retain
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/datastore/database.yml"
+      Parameters:
+        DBClass: db.t2.small
+        DBAllocatedStorage: 20
+        VPCId: !GetAtt VPC.Outputs.VpcId
+        SubnetIds: !GetAtt VPC.Outputs.PrivateSubnetsIds
+        Environment: !Ref Environment
+        StackName: !Ref AWS::StackName
+        EC2SecurityGroup: !GetAtt EKS.Outputs.NodeSecurityGroup
+      Tags:
+        - Key: Environment
+          Value: !Sub ${AWS::StackName}-${Environment}
+  
+  # RedisStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/datastore/elasticache.yml"
+  #     Parameters:
+  #       VPCSubnets: !Join [ ",", [!GetAtt [VPC, Outputs.PrivateSubnet1AID], !GetAtt [VPC, Outputs.PrivateSubnet2AID]]]
+  #       VpcId: !GetAtt VPC.Outputs.VPCID
+  #       StackName: !Ref AWS::StackName
+  #       Environment: !Ref Environment
+  #       EC2SecurityGroup: !GetAtt ECS.Outputs.SecurityGroup
+  #     Tags:
+  #       - Key: StackName
+  #         Value: !Sub ${AWS::StackName}-${Environment}
+
+  # SSM:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/management/ssm.yml"
+  #     Parameters:
+  #       ASGName: !GetAtt ECS.Outputs.AutoScalingGroupName
+  #       S3BucketName: !Ref S3BucketName
+  #       S3KeyPrefix: !Ref S3KeyPrefix
+  #       Environment: !Ref Environment
+  #       StackName: !Ref AWS::StackName
+  #     Tags:
+  #       - Key: StackName
+  #         Value: !Sub ${AWS::StackName}-${Environment}
+  # Jenkins:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/continuous-integration/master.yml"
+  #     Parameters:
+  #       VpcId: !GetAtt VPC.Outputs.VPCID
+  #       PublicSubnetsIds: !Join [ ",", [!GetAtt [VPC, Outputs.PublicSubnet1ID], !GetAtt [VPC, Outputs.PublicSubnet2ID]]]
+  #       PrivateSubnetsIds: !Join [ ",", [!GetAtt [VPC, Outputs.PrivateSubnet1AID], !GetAtt [VPC, Outputs.PrivateSubnet2AID]]]
+  #       ClusterName: Jenkins
+  #       KeyPair: !Ref KeyPair
+  #       S3BucketName: !Ref S3BucketName
+  #       S3KeyPrefix: !Sub ${S3KeyPrefix}/continuous-integration
+  #       StackName: !Ref AWS::StackName
+  #       Environment: Dev
+  #     Tags:
+  #       - Key: StackName
+  #         Value: !Sub ${AWS::StackName}-${Environment}
+  # Clair:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/coreos-clair/clair-template.yml"
+  #     Parameters:
+  #       VpcId: !GetAtt VPC.Outputs.VPCID
+  #       PublicSubnets: !Join [ ",", [!GetAtt [VPC, Outputs.PublicSubnet1ID], !GetAtt [VPC, Outputs.PublicSubnet2ID]]]
+  #       PrivateSubnets: !Join [ ",", [!GetAtt [VPC, Outputs.PrivateSubnet1AID], !GetAtt [VPC, Outputs.PrivateSubnet2AID]]]
+  #       ECSClusterName: CoreOS-Clair
+  #       ECRRepositoryUri: 695292474035.dkr.ecr.us-west-2.amazonaws.com/coreos-clair:latest
+  #     Tags:
+  #       - Key: StackName
+  #         Value: !Sub ${AWS::StackName}-${Environment}

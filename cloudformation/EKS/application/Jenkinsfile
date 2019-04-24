@@ -1,0 +1,84 @@
+node('jnlp-slave'){
+  commit = "";
+  password = "";
+  prod = "";
+  stage('SCM') {
+    git url: 'https://github.com/nclouds/generalized.git', branch: 'Layer2'
+    commit = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
+  }
+  stage('Analyze') {
+    sh 'ls'
+    dir("cloudformation/ECS/application"){
+      sh 'docker run --rm -i hadolint/hadolint hadolint - < Dockerfile'
+    }
+  }
+  stage('Build') {
+    sh 'ls'
+    dir("cloudformation/ECS/application"){
+      sh "docker build -t goapp:${commit} ."
+      sh "docker tag goapp:${commit} 695292474035.dkr.ecr.us-west-2.amazonaws.com/goapp:${commit}"
+      sh "docker tag goapp:${commit} 695292474035.dkr.ecr.us-west-2.amazonaws.com/goapp:latest"
+      sh "\$(aws ecr get-login --no-include-email --region us-west-2)"
+      sh "docker push 695292474035.dkr.ecr.us-west-2.amazonaws.com/goapp"
+    }
+  }
+  stage('Vulnerability Test') {
+    password = sh(returnStdout: true, script: "echo \$(aws ecr get-login --no-include-email --region us-west-2) | cut -d ' ' -f6 ").trim()
+    sh 'wget https://github.com/optiopay/klar/releases/download/v2.1.1/klar-2.1.1-linux-amd64'
+    sh 'mv ./klar-2.1.1-linux-amd64 ./klar'
+    sh 'chmod +x ./klar'
+    sh "DOCKER_USER=AWS DOCKER_PASSWORD=${password} CLAIR_ADDR=http://L2-De-Clair-MWQZ1FQH6HMA-1528153496.us-west-2.elb.amazonaws.com:6060 CLAIR_OUTPUT=Critical ./klar 695292474035.dkr.ecr.us-west-2.amazonaws.com/goapp:latest"
+  }
+  stage('Test') {
+    echo "testing ..."
+  }
+  stage('Green Deploy') {
+    prod = sh(returnStdout: true, script: "aws ssm get-parameter --region us-west-2 --name /L2-Demo/PROD --output text --query Parameter.Value").trim()
+    if (prod == 'BLUE') {
+      echo "PROD is on BLUE Service deploying to GREEN serice"
+    //   sh 'aws ecs update-service --region us-west-2 --cluster L2-Demo-App --service L2-Demo-GreenAppService-4Q0KMQC80YBT-Service-QNKB2K9RF9WR --force-new-deployment'
+    } else {
+      echo "PROD is on GREEN Service deploying to BLUE serice"
+    //   sh 'aws ecs update-service --region us-west-2 --cluster L2-Demo-App --service L2-Demo-BlueAppService-2D8ABRQEICLP-Service-YH7DR7BE4UBC --force-new-deployment'
+    }
+    sleep 6
+  }
+}
+def userInput = true
+def IsTimeout = false
+try {
+    timeout(time: 60, unit: 'SECONDS') {
+        input = input(
+            id: 'userInput', message: 'Let\'s Deploy?', parameters: [
+                [$class: 'BooleanParameterDefinition', defaultValue: true, description: 'Deploy to Production?', name: 'PROD']
+        ]);
+    }
+} catch(err) { // timeout reached or input false
+    userInput = false
+}
+
+node('jnlp-slave'){
+    if (userInput == true) {
+        stage('Blue Deploy'){
+            if (prod == 'BLUE') {
+              echo "Switching to GREEN Service"
+              sh 'aws elbv2 set-rule-priorities --region us-west-2 --rule-priorities RuleArn=arn:aws:elasticloadbalancing:us-west-2:695292474035:listener-rule/app/L2-De-LoadB-1NVIE2NPVZA6E/6d3b9b1a62581458/7b1d2810fda5b7db/87816823708ed8bb,Priority=1'
+              sh 'aws elbv2 set-rule-priorities --region us-west-2 --rule-priorities RuleArn=arn:aws:elasticloadbalancing:us-west-2:695292474035:listener-rule/app/L2-De-LoadB-1NVIE2NPVZA6E/6d3b9b1a62581458/f7f1e46aac7319a0/3b4325204b61b785,Priority=1'
+              sh 'aws ssm put-parameter --region us-west-2 --name "/L2-Demo/PROD" --type "String" --value "GREEN"'
+            } else {
+              echo "Switching to BLUE Service"
+              sh 'aws elbv2 set-rule-priorities --region us-west-2 --rule-priorities RuleArn=arn:aws:elasticloadbalancing:us-west-2:695292474035:listener-rule/app/L2-De-LoadB-1NVIE2NPVZA6E/6d3b9b1a62581458/7b1d2810fda5b7db/87816823708ed8bb,Priority=4'
+              sh 'aws elbv2 set-rule-priorities --region us-west-2 --rule-priorities RuleArn=arn:aws:elasticloadbalancing:us-west-2:695292474035:listener-rule/app/L2-De-LoadB-1NVIE2NPVZA6E/6d3b9b1a62581458/f7f1e46aac7319a0/3b4325204b61b785,Priority=4'
+              sh 'aws ssm put-parameter --region us-west-2 --overwrite --name "/L2-Demo/PROD" --type "String" --value "BLUE"'
+            }
+        }
+    } else {
+        echo "Production environment is kept on ${prod}"
+    } 
+    
+}
+
+// aws elbv2 set-rule-priorities --rule-priorities \
+// RuleArn=arn:aws:elasticloadbalancing:us-west-2:695292474035:listener-rule/app/L2-De-LoadB-1NVIE2NPVZA6E/6d3b9b1a62581458/7b1d2810fda5b7db/87816823708ed8bb,Priority=1
+// aws elbv2 set-rule-priorities --rule-priorities \
+// RuleArn=arn:aws:elasticloadbalancing:us-west-2:695292474035:listener-rule/app/L2-De-LoadB-1NVIE2NPVZA6E/6d3b9b1a62581458/f7f1e46aac7319a0/3b4325204b61b785,Priority=1

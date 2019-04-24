@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goapp
+  labels:
+    app: goapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: goapp
+  template:
+    metadata:
+      labels:
+        app: goapp
+    spec:
+      containers:
+      - name: goapp
+        image: 695292474035.dkr.ecr.us-west-2.amazonaws.com/goapp:v2.0
+        resources:
+          requests:
+            cpu: 200m
+        ports:
+          - containerPort: 8080
+        env:
+          - name: AWS_ENV_PATH
+            value: /L2-Demo/
+          - name: AWS_REGION
+            value: us-west-2
+          - name: DB_HOST
+            value: l2-eks-demo-dev.ckwyc0irvefm.us-west-2.rds.amazonaws.com

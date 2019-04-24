@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  S3 bucket cloudformation stack
+Parameters:
+  StackName:
+    Type: String
+    Default: demo
+    Description: This will be used to name the resources
+  Environment:
+    Type: String
+    Default: Dev
+    AllowedValues: [Prod, Stage, Dev]
+Mappings:
+  Region2ARNPrefix:
+    us-east-1:
+      ARNPrefix: 'arn:aws:'
+    us-west-1:
+      ARNPrefix: 'arn:aws:'
+    us-west-2:
+      ARNPrefix: 'arn:aws:'
+    eu-west-1:
+      ARNPrefix: 'arn:aws:'
+    ap-northeast-1:
+      ARNPrefix: 'arn:aws:'
+    ap-northeast-2:
+      ARNPrefix: 'arn:aws:'
+    ap-southeast-1:
+      ARNPrefix: 'arn:aws:'
+    ap-southeast-2:
+      ARNPrefix: 'arn:aws:'
+    ap-south-1:
+      ARNPrefix: 'arn:aws:'
+    us-east-2:
+      ARNPrefix: 'arn:aws:'
+    sa-east-1:
+      ARNPrefix: 'arn:aws:'
+    cn-north-1:
+      ARNPrefix: 'arn:aws-cn:'
+    eu-central-1:
+      ARNPrefix: 'arn:aws:'
+
+  Region2ELBAccountId:
+    us-east-1:
+      AccountId: '127311923021'
+    us-west-1:
+      AccountId: 027434742980
+    us-west-2:
+      AccountId: '797873946194'
+    eu-west-1:
+      AccountId: '156460612806'
+    ap-northeast-1:
+      AccountId: '582318560864'
+    ap-northeast-2:
+      AccountId: '600734575887'
+    ap-southeast-1:
+      AccountId: '114774131450'
+    ap-southeast-2:
+      AccountId: '783225319266'
+    ap-south-1:
+      AccountId: '718504428378'
+    us-east-2:
+      AccountId: 033677994240
+    sa-east-1:
+      AccountId: '507241528517'
+    cn-north-1:
+      AccountId: '638102146993'
+    eu-central-1:
+      AccountId: 054676820928
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: LogDeliveryWrite
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: StackName
+          Value: !Sub ${StackName}-${Environment}
+  
+  LogsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: ELBAccessLogs20130930
+          Effect: Allow
+          Resource: !Join ['', [!FindInMap [Region2ARNPrefix, !Ref 'AWS::Region',
+                ARNPrefix], 's3:::', !Ref 'S3Bucket', /*]] ##, Logs, /AWSLogs/, !Ref 'AWS::AccountId',
+              ##/*]]
+          Principal:
+            AWS: !FindInMap [Region2ELBAccountId, !Ref 'AWS::Region', AccountId]
+          Action: ['s3:*']
+    
+Outputs:
+  BucketName:
+    Value: !Ref S3Bucket
+    Description: Name of the sample Amazon S3 bucket with a logging configuration.
