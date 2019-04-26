@@ -30,7 +30,7 @@ Resources:
   VPC:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/network.yml"
+      TemplateURL: !Sub https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/network.yml
       Parameters:
         VpcCIDR: 10.0.0.0/16
         SetNatGateway: true
@@ -42,7 +42,7 @@ Resources:
   EKS:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/eks-cluster.yml"
+      TemplateURL: !Sub https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/eks-cluster.yml
       Parameters:
         VpcId: !GetAtt VPC.Outputs.VpcId
         Subnets: !Join [",", [ !GetAtt VPC.Outputs.PublicSubnetsIds, !GetAtt VPC.Outputs.PrivateSubnetsIds ] ]
@@ -61,6 +61,26 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Sub ${AWS::StackName}-${Environment}
+  CICD:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/continuous-integration/deployment-pipeline.yml
+      Parameters:
+        ApplicationName: goapp
+        CodeBuildImage: aws/codebuild/docker:18.09.0-1.7.0
+        ECRRepositoryName: goapp
+        GitHubRepositoryName: generalized
+        GitHubRepositoryBranch: Layer2
+        GitHubOwner: nclouds
+        GitHubToken: /L2-Demo/GitHubToken # ParameterStore path
+        EKSClusterName: !GetAtt EKS.Outputs.ClusterName
+        ServiceName: demo-service
+        Environment: !Ref Environment
+        StackName: !Ref AWS::StackName
+      Tags:
+        - Key: Environment
+          Value: !Sub ${AWS::StackName}-${Environment}
+  
   # S3Bucket:
   #   Type: AWS::CloudFormation::Stack
   #   Properties:

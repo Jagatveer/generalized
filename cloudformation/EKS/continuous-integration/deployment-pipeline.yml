@@ -1,0 +1,245 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Template for full CI/CD using CodePipeline and CodeBuild
+
+Parameters:
+
+  ApplicationName:
+    Type: String
+    MinLength: 1
+    MaxLength: 80
+    AllowedPattern: "[A-Za-z0-9-]+"
+    ConstraintDescription: Malformed input parameter. ApplicationName must only contain upper and lower case letters, numbers, and -.
+    Description: Name of the application, used to name CodeBuild and CodePipeline resources
+
+  CodeBuildImage:
+    Type: String
+    Default: aws/codebuild/docker:18.09.0-1.7.0
+    Description: Image used for CodeBuild project
+
+  ECRRepositoryName:
+    Type: String
+    Description: ECR repository name to push the Image
+
+  GitHubRepositoryName:
+    Type: String
+    Description: The GitHub repository name to use as source code
+
+  GitHubRepositoryBranch:
+    Type: String
+    Description: The GitHub repository branch that CodePipeline should watch for changes
+    Default: master
+
+  GitHubOwner:
+    Type: String
+    Description: GitHub UserName. This username must have access to the GitHubToken
+
+  GitHubToken:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /L2-Demo/GitHubToken
+    NoEcho: true
+    Description: OAuthToken with access to Repo stored in ParameterStore. Go to https://github.com/settings/tokens
+
+  EKSClusterName:
+    Type: String
+
+  ServiceName:
+    Type: String
+
+  Environment:
+    Type: String
+    Default: Dev
+    AllowedValues: [Prod, Stage, Dev]
+
+  StackName:
+    Type: String
+    Description: Stack name to prefix some resource names
+
+Resources:
+
+  # ############### Roles ##############
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+          - PolicyName: !Sub CodeBuild-${ApplicationName}-${StackName}-${Environment}
+            PolicyDocument:
+              Statement:
+                - Effect: Allow
+                  Action: 
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                  Resource: '*'
+                - Effect: Allow
+                  Action: 
+                    - s3:*
+                  Resource: '*'
+                - Effect: Allow
+                  Resource: '*'
+                  Action:
+                    - ecr:*
+                    - eks:*
+                    - ssm:*
+
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: !Sub CodePipeline-${ApplicationName}-${StackName}-${Environment}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codedeploy:CreateDeployment
+                  - codedeploy:GetApplicationRevision
+                  - codedeploy:GetDeployment
+                  - codedeploy:GetDeploymentConfig
+                  - codedeploy:RegisterApplicationRevision
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ec2:*
+                  - elasticloadbalancing:*
+                  - autoscaling:*
+                  - cloudwatch:*
+                  - s3:*                  
+                  - cloudformation:*
+                  - ecs:*
+                Resource: '*'
+
+  # ############# CodeBuild ############
+
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${ApplicationName}_build-${StackName}-${Environment}
+      Description: !Sub Building stage for ${ApplicationName}
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: cloudformation/EKS/application/buildspec.yml
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref AWS::Region
+          - Name: REPOSITORY_URI
+            Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepositoryName}
+          - Name: S3_BUCKET
+            Value: !Ref S3Bucket
+          - Name: EKS_CLUSTER_NAME
+            Value: !Ref EKSClusterName
+          - Name: SERVICE_NAME
+            Value: !Ref ServiceName
+        Image: !Ref CodeBuildImage
+        PrivilegedMode: true
+        Type: LINUX_CONTAINER
+      LogsConfig:
+        CloudWatchLogs:
+          Status:  ENABLED
+      Tags:
+        - Key: app-name
+          Value: !Ref ApplicationName
+      TimeoutInMinutes: 5
+
+  # ########### CodePipeline ###########
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub codepipeline-artifacts-${AWS::AccountId}-${AWS::Region}-${ApplicationName}
+      VersioningConfiguration:
+        Status: Enabled
+
+  S3ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Id: SSEAndSSLPolicy
+        Statement:
+        - Sid: DenyInsecureConnections
+          Effect: Deny
+          Principal: '*'
+          Action: s3:*
+          Resource: !Sub "arn:aws:s3:::${S3Bucket}/*"
+          Condition:
+            Bool:
+              aws:SecureTransport: false
+
+  ProjectPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub ${ApplicationName}_Pipeline-${StackName}-${Environment}
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      Stages:
+      - Name: Checkout
+        Actions:
+        - Name: Checkout
+          InputArtifacts: []
+          ActionTypeId:
+            Version: 1
+            Category: Source
+            Owner: ThirdParty
+            Provider: GitHub
+          Configuration:
+            Repo: !Ref GitHubRepositoryName
+            Branch: !Ref GitHubRepositoryBranch
+            OAuthToken: !Ref GitHubToken
+            Owner: !Ref GitHubOwner
+          OutputArtifacts:
+            - Name: !Sub SourceArtifact
+          RunOrder: 1
+      - Name: Deployment
+        Actions:
+        - Name: BuildAndDeploy
+          InputArtifacts:
+            - Name: !Sub SourceArtifact
+          ActionTypeId:
+            Category: Build
+            Owner: AWS
+            Version: 1
+            Provider: CodeBuild
+          OutputArtifacts:
+            - Name: !Sub BuildArtifact
+          Configuration:
+            ProjectName: !Ref CodeBuildProject
+          RunOrder: 1
+      ArtifactStore:
+        Type: S3
+        Location: !Ref S3Bucket
+    DependsOn: CodeBuildProject
