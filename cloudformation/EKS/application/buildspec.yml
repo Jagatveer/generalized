@@ -1,0 +1,41 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - cd cloudformation/EKS/application
+      - curl -sS -o aws-iam-authenticator https://amazon-eks.s3-us-west-2.amazonaws.com/1.11.5/2018-12-06/bin/linux/amd64/aws-iam-authenticator
+      - curl -sS -o kubectl https://amazon-eks.s3-us-west-2.amazonaws.com/1.11.5/2018-12-06/bin/linux/amd64/kubectl
+      - chmod +x ./kubectl ./aws-iam-authenticator
+      - export PATH=$PWD/:$PATH
+      - apt-get update && apt-get -y install jq python3-pip python3-dev && pip3 install --upgrade awscli
+  pre_build:
+    commands:
+      - echo Testing image with Hadolint...
+      - docker run --rm -i hadolint/hadolint hadolint - < Dockerfile
+      - echo Logging in to Amazon ECR...
+      - aws --version
+      - $(aws ecr get-login --region $AWS_DEFAULT_REGION --no-include-email)
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+      - export KUBECONFIG=$HOME/.kube/config
+      - echo $EKS_CLUSTER_NAME
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - docker build -t $REPOSITORY_URI:latest .
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo Updating EKS cluster on `date`
+      - aws eks update-kubeconfig --name $EKS_CLUSTER_NAME
+      - kubectl set image deployment/goapp goapp=695292474035.dkr.ecr.us-west-2.amazonaws.com/goapp:$IMAGE_TAG
+      - echo Writing image definitions file...
+      - printf '{"name":"sso","imageUri":"%s","imageTag":"%s","env":"%s"}' $REPOSITORY_URI $IMAGE_TAG staging > imagedefinitions.json
+artifacts:
+    files: cloudformation/EKS/application/imagedefinitions.json
