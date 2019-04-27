@@ -1,35 +1,19 @@
+# AWS EKS
 
-# AWS ECS
+Amazon Elastic Container Service for Kubernetes (Amazon EKS) is a managed service that makes it easy for you to run Kubernetes on AWS without needing to stand up or maintain your own Kubernetes control plane. Kubernetes is an open-source system for automating the deployment, scaling, and management of containerized applications.
 
-Amazon Elastic Container Service (Amazon ECS) is a highly scalable, high-performance container orchestration service that supports Docker containers and allows to easily run and scale containerized applications on AWS. Amazon ECS eliminates the need for you to install and operate your own container orchestration software, manage and scale a cluster of virtual machines, or schedule containers on those virtual machines.
 
-## Fargate
-AWS Fargate is a compute engine for Amazon ECS that allows you to run containers without having to manage servers or clusters. With AWS Fargate, you no longer have to provision, configure, and scale clusters of virtual machines to run containers.
+## Infrastructure
 
-![Fargate](images/Fargate.png)
+This project contains the templates to spin up a complete EKS environment including the networking (VPC, subnets, etc), the EKS cluster and an RDS for the application. It is built using nested stacks with different modules, implementing nCloud best practices. This repo contains the following modules:
 
-## EC2
-With ECS running on EC2 instances you are responsible of deploying the required infrastructure. You need to configure and manage the EC2 instances and the scaling policies, but you have more control over your infrastructure.
-
-![ECS](images/EC2.png)
-
-## EC2 vs Fargate
-
-Choosing one or another depends on the needs of every organization:
-- Fargate provides faster development and scaling by leaving the underlaying infrastructure to AWS
-- EC2 provides more control over the instances to support compliance and governance requirements, or broader customization options.
-
-# Project
-
-This project contains the templates to spin up a complete environment with for a containerized application running on ECS. It is built using nested stacks with different modules, implementing nCloud best practices. This repo contains the following modules:
-
-- [ECS Infrastructure](ReadMe.md): Infrastructure to run an application on ECS. It includes the *network* (VPC, subnets, ACL's, etc), *database* (RDS), and *ECS infrastructure* (cluster, services) for an application.
+- [EKS Infrastructure](ReadMe.md): Infrastructure to run an application on EKS. It includes the *network* (VPC, subnets, ACL's, etc), *database* (RDS), and *EKS infrastructure* (cluster, Worker nodes) for an application.
 - [Containerized Application](application/ReadMe.md): An application developed using containers, following some Doker best practices
-- [CI / CD](continuous-integration/ReadMe.md): Infrastructure to build a complete *continuous integration / conituous delivery* pipelne (Jenkins master-slave set up using ECS and a Blue / Green deployment implementation)
+- [Kubernetes](kubernetes/ReadMe.md): The architecture of the kubernetes application
+- [CI / CD](continuous-integration/ReadMe.md): Infrastructure to build a complete *continuous integration / conituous delivery* pipelne using CodePipeline and CodeBuild
 - [Monitoring](monitoring/ReadMe.md): External monitoring set up for the ECS application using *DataDog* 
-- [Management](management/ReadMe.md): A management and compliance set up using *SSM* (Maintenance windows, security scans and patches, and an automated AMI patching)
 
-![Project](images/Project.png)
+![Project](images/EKS.png)
 
 ## Getting Started
 
@@ -38,16 +22,18 @@ These instructions will help you to deploy the complete project in AWS using *Cl
 ### Prerequisites
 
 To deploy the project it is needed to set up some configuration parameters on *Parameter Store* before deploying the stacks
-  - /ECS/DB_USER : The Database username
-  - /ECS/DB_PASSWORD : The Database password
-  - /ECS/DD_API_KEY : The DataDog Api key to run the agent
+  - /EKS/DB_USER : The Database username
+  - /EKS/DB_PASSWORD : The Database password
+  - /EKS/DD_API_KEY : The DataDog Api key to run the agent
+  - /EKS/GitHubToken : The GitHub authentication token
 
 you can upload these parameters with the following commands:
 
 ```bash
-aws ssm put-parameter --name /ECS/DB_USER --type String --value <db_username>
-aws ssm put-parameter --name /ECS/DB_PASSWORD --type String --value <db_password>
-aws ssm put-parameter --name /ECS/DD_API_KEY --type String --value <dd_api_key>
+aws ssm put-parameter --name /EKS/DB_USER --type String --value <db_username>
+aws ssm put-parameter --name /EKS/DB_PASSWORD --type String --value <db_password>
+aws ssm put-parameter --name /EKS/DD_API_KEY --type String --value <dd_api_key>
+aws ssm put-parameter --name /EKS/GitHubToken --type String --value <github_token>
 ```
 
 Also you need to upload the templates to an S3 bucket:
@@ -59,12 +45,22 @@ aws s3 sync . "s3://<TemplatesBucketName>/<Prefix>" --exclude "*" --include "*.y
 And finally deploy the stack:
 
 ```bash
-aws cloudformation create-stack --region us-west-2 --stack-name "<StackName>" --template-body file://master.yml --parameters ParameterKey=KeyPair,ParameterValue="<KeyPair>" ParameterKey=QSS3BucketName,ParameterValue="<TemplatesBucketName>" ParameterKey=QSS3KeyPrefix,ParameterValue="<Prefix>"  --capabilities CAPABILITY_NAMED_IAM
+aws cloudformation create-stack --region "<Region>" --stack-name "<StackName>" --template-body file://master.yml --parameters ParameterKey=KeyPair,ParameterValue="<KeyPair>" ParameterKey=S3BucketName,ParameterValue="<TemplatesBucketName>" ParameterKey=S3KeyPrefix,ParameterValue="<Prefix>"  --capabilities CAPABILITY_NAMED_IAM
 ```
 
 You can also use the commands scripts included in the *commands* folder by setting the parameters in the **config.yml**:
 
 ```bash
+./commands/parameters.sh
 ./commands/sync.sh
 ./commands/create.sh
 ```
+
+### CloudFormation Parameters
+
+| Parameter    | Description                                               | Optional |
+|--------------|-----------------------------------------------------------|----------|
+| KeyPair      | EC2 KeyPair to use                                        | False    |
+| S3BucketName | S3 Bucket for the CF assets                               | False    |
+| S3KeyPrefix  | S3 Prefix for the CF assets                               | False    |
+| Environment  | A Env name to append to resources name [Dev, Stage, Prod] | True     |

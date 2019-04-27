@@ -1,6 +1,17 @@
+# ###### CloudFormation Parameters #####
+
 Region: us-west-2
 StackName: L2-EKS-Demo
 S3BucketName: l2-demo
 S3KeyPrefix: L2-EKS-Demo
 Environment: Dev
 KeyPair: ronaldo
+
+# ###### ParameterStore Parameters #####
+
+# Don't commit values
+DBUser: <db_user>
+DBPassword: <db_password>
+DataDogAPIKey: <dd_apikey>
+GitHubToken: <github_token>
+

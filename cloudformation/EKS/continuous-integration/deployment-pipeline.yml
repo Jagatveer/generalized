@@ -16,7 +16,7 @@ Parameters:
   CodeBuildImage:
     Type: String
     Default: aws/codebuild/docker:18.09.0-1.7.0
-    Description: Image used for CodeBuild project
+    Description: Image used for CodeBuild envrionment
 
   ECRRepositoryName:
     Type: String
@@ -33,7 +33,7 @@ Parameters:
 
   GitHubOwner:
     Type: String
-    Description: GitHub UserName. This username must have access to the GitHubToken
+    Description: GitHub Owner of the repository
 
   GitHubToken:
     Type: AWS::SSM::Parameter::Value<String>
@@ -243,3 +243,11 @@ Resources:
         Type: S3
         Location: !Ref S3Bucket
     DependsOn: CodeBuildProject
+
+Outputs:
+
+  CodeBuildRoleARN:
+    Description: ARN of the role attached to CodeBuild
+    Value: !GetAtt CodeBuildServiceRole.Arn
+    Export:
+      Name: !Sub ${StackName}-${Environment}:CodeBuildRoleARN
