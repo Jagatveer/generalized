@@ -24,10 +24,10 @@ Choosing one or another depends on the needs of every organization:
 This project contains the templates to spin up a complete environment with for a containerized application running on ECS. It is built using nested stacks with different modules, implementing nCloud best practices. This repo contains the following modules:
 
 - [ECS Infrastructure](ReadMe.md): Infrastructure to run an application on ECS. It includes the *network* (VPC, subnets, ACL's, etc), *database* (RDS), and *ECS infrastructure* (cluster, services) for an application.
-- [Containerized Application](application/ReadMe.md): An application developed using containers, following some Doker best practices
-- [CI / CD](continuous-integration/ReadMe.md): Infrastructure to build a complete *continuous integration / conituous delivery* pipelne (Jenkins master-slave set up using ECS and a Blue / Green deployment implementation)
-- [Monitoring](monitoring/ReadMe.md): External monitoring set up for the ECS application using *DataDog* 
-- [Management](management/ReadMe.md): A management and compliance set up using *SSM* (Maintenance windows, security scans and patches, and an automated AMI patching)
+- [Containerized Application](application): An application developed using containers, following some Doker best practices
+- [CI / CD](continuous-integration): Infrastructure to build a complete *continuous integration / conituous delivery* pipelne (Jenkins master-slave set up using ECS and a Blue / Green deployment implementation)
+- [Monitoring](monitoring): External monitoring set up for the ECS application using *DataDog* 
+- [Management](management): A management and compliance set up using *SSM* (Maintenance windows, security scans and patches, and an automated AMI patching)
 
 ![Project](images/Project.png)
 

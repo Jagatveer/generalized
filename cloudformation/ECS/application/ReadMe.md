@@ -23,7 +23,7 @@ To run the application locally:
 docker-compose build
 ```
 ```bash
-docker-compose run
+docker-compose up
 ```
 
 ## Getting Started

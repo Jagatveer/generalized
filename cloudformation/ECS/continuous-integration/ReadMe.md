@@ -21,7 +21,7 @@ You can find more information on the [Hadolint Repo](https://github.com/hadolint
 
 ### Vulnerability Scanner
 
-The Jenknins pipeline uses a [vulnerability scanner](../coreos-clair/ReadMe.md) to analyze the images before pushing and deploying the new image. This Enforces security best practices, catches human erros and prevents security breaches on our live environment
+The Jenknins pipeline uses a [vulnerability scanner](../coreos-clair) to analyze the images before pushing and deploying the new image. This Enforces security best practices, catches human erros and prevents security breaches on our live environment
 
 ### Blue / Green Deployment
 
