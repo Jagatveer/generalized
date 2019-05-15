@@ -18,16 +18,17 @@ output "private_subnets_ids" {
 }
 
 output "rds_subnet_group" {
-  value = ["${aws_db_subnet_group.rds.*.name}"]
+  value = "${element(concat(aws_db_subnet_group.rds.*.name, list("")), 0)}"
 }
 
 output "es_subnet_group" {
-  value = "${aws_elasticache_subnet_group.elasticache.0.name}"
+  value = "${element(concat(aws_elasticache_subnet_group.elasticache.*.name, list("")), 0)}"
 }
 
 output "private_route_table" {
   value = "${aws_route_table.private_route_table.0.id}"
 }
+
 output "public_route_table" {
   value = "${aws_route_table.public_route_table.0.id}"
 }

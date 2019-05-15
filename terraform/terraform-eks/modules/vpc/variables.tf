@@ -38,8 +38,8 @@ variable "rds_subnets" {
   default     = []
 }
 variable "elasticache_subnets" {
-  type        = "map"
-  description = "List CIDR assignments for RDS"
+  type        = "list"
+  description = "List CIDR assignments for elasticache"
   default     = []
 }
 variable "vpc_to_connect" {

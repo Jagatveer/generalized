@@ -68,7 +68,7 @@ resource "aws_subnet" "private_rds_subnets" {
 
 resource "aws_db_subnet_group" "rds" {
   count      = "${length(var.rds_subnets) > 0 ? 1 : 0}"
-  name       = "${var.environment}_${var.cluster_name}_rds_subnet_group"
+  name       = "${var.environment}-rds-subnet-group"
   subnet_ids =  ["${aws_subnet.private_rds_subnets.*.id}"]
 }
 
