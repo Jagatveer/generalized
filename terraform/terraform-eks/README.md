@@ -73,3 +73,16 @@ terraform workspace select ${env}
 terraform destroy -var-file=config/${env}.tfvars
 
 ```
+
+### Troubleshoot
+
+In the case that you get an error while destroying the template similar as the following :
+
+```
+output.foo: Resource 'null_resource.b' does not have attribute 'id' for variable 'null_resource.b.id'
+```
+export the following variable and try again
+
+```bash
+export TF_WARN_OUTPUT_ERRORS=1
+```
