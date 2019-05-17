@@ -32,4 +32,5 @@ COPY --from=build /go/src/app/bin /app/
 RUN chmod +x /bin/aws-env
 WORKDIR /app
 
+#DD_AGENT_HOST can be updated to use service discovery
 CMD ["sh", "-c", "eval $(aws-env) && ./app"]
