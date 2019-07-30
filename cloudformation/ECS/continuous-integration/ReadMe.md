@@ -38,7 +38,7 @@ The stack template receives the following parameters:
 - PrivateSubnetsIds
 - ClusterName
 - KeyPair
-- QSS3BucketName
-- QSS3KeyPrefix
+- S3BucketName
+- S3KeyPrefix
 - Environment
 - StackName

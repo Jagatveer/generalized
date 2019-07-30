@@ -59,7 +59,7 @@ aws s3 sync . "s3://<TemplatesBucketName>/<Prefix>" --exclude "*" --include "*.y
 And finally deploy the stack:
 
 ```bash
-aws cloudformation create-stack --region us-west-2 --stack-name "<StackName>" --template-body file://master.yml --parameters ParameterKey=KeyPair,ParameterValue="<KeyPair>" ParameterKey=QSS3BucketName,ParameterValue="<TemplatesBucketName>" ParameterKey=QSS3KeyPrefix,ParameterValue="<Prefix>"  --capabilities CAPABILITY_NAMED_IAM
+aws cloudformation create-stack --region us-west-2 --stack-name "<StackName>" --template-body file://master.yml --parameters ParameterKey=KeyPair,ParameterValue="<KeyPair>" ParameterKey=S3BucketName,ParameterValue="<TemplatesBucketName>" ParameterKey=S3KeyPrefix,ParameterValue="<Prefix>"  --capabilities CAPABILITY_NAMED_IAM
 ```
 
 You can also use the commands scripts included in the *commands* folder by setting the parameters in the **config.yml**:

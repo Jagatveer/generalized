@@ -1,46 +1,57 @@
+---
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   ECS Cluster with monitoring tools, including DataDog, CloudWatch Logs and Systems Manager.
+
 Parameters:
+
   VPCCIDR:
     Type: String
     Default: 10.0.0.0/16
     AllowedPattern: "(\\d{1,3}\\.){3}\\d{1,3}/(\\d{1,2})"
     ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
     Description: CIDR Block for the VPC
+
   Certificate:
     Type: String
     Default: ""
     Description: SSL Certificate ARN
+
   KeyPair:
     Type: AWS::EC2::KeyPair::KeyName
     Default: ronaldo
     Description: Public/private key pairs allow you to securely connect to your instance after it launches
-  QSS3BucketName:
+
+  S3BucketName:
     Type: String
     Default: l2-demo
     AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
     ConstraintDescription: "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
     Description: "S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
-  QSS3KeyPrefix:
+
+  S3KeyPrefix:
     Type: String
     Default: L2-Demo
     AllowedPattern: "^[0-9a-zA-Z-/]*$"
     ConstraintDescription: "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/)."
     Description: "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with a hyphen (-)."
+
   StackName:
     Type: String
     Default: L2-Demo
     Description: This will be used to name the resources
+    
   Environment:
     Type: String
     Default: Dev
     AllowedValues: [Prod, Stage, Dev]
+
 Resources: 
+
   VPC:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/network/vpc.yml"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrasctructure/network.yml"
       Parameters:
         AvailabilityZones: !Join [ ",", !GetAZs '']
         VPCCIDR: !Ref VPCCIDR
@@ -49,23 +60,25 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Sub ${StackName}-${Environment}
+
   S3Bucket:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/datastore/s3.yml"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/datastore/s3.yml"
       Parameters:
         StackName: !Ref StackName
         Environment: !Ref Environment
       Tags:
         - Key: Environment
           Value: !Sub ${StackName}-${Environment}
+
   ALB:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/infrastructure/load-balancers.yml"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/load-balancers.yml"
       Parameters:
         VpcId: !GetAtt VPC.Outputs.VPCID
-        SubnetsIds: !Join [ ",", [!GetAtt VPC.Outputs.PublicSubnet1ID, !GetAtt VPC.Outputs.PublicSubnet2ID]]
+        SubnetsIds: !GetAtt VPC.Outputs.PublicSubnetsIds
         CertificateArn: !Ref Certificate
         S3BucketLogs: !GetAtt S3Bucket.Outputs.BucketName
         StackName: !Ref StackName
@@ -73,13 +86,14 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Sub ${StackName}-${Environment}
+
   ECS:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/infrastructure/ecs-cluster.yml"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/ecs-cluster.yml"
       Parameters:
         VpcId: !GetAtt VPC.Outputs.VPCID
-        SubnetsIds: !Join [ ",", [!GetAtt VPC.Outputs.PrivateSubnet1AID, !GetAtt VPC.Outputs.PrivateSubnet2AID]]
+        SubnetsIds: !GetAtt VPC.Outputs.PrivateSubnetsIds
         ALBSecurityGroup: !GetAtt ALB.Outputs.SecurityGroupId
         ALBDNS: !GetAtt ALB.Outputs.LoadBalancerDomain
         ClusterName: L2-Demo-App
@@ -99,11 +113,12 @@ Resources:
         - Key: Environment
           Value: !Sub ${StackName}-${Environment}
     DependsOn:
-      - VPC  
+      - VPC 
+
   BlueAppService:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/infrastructure/service.yml"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/service.yml"
       Parameters:
         VpcId: !GetAtt VPC.Outputs.VPCID
         Cluster: !GetAtt ECS.Outputs.Cluster
@@ -123,10 +138,11 @@ Resources:
           Value: !Sub ${StackName}-${Environment}
     DependsOn:
       - DB
+
   GreenAppService:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/infrastructure/service.yml"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/service.yml"
       Parameters:
         VpcId: !GetAtt VPC.Outputs.VPCID
         Cluster: !GetAtt ECS.Outputs.Cluster
@@ -146,10 +162,11 @@ Resources:
           Value: !Sub ${StackName}-${Environment}
     DependsOn:
       - DB
+
   DDService:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/infrastructure/ddservice.yml"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/ddservice.yml"
       Parameters:
         Cluster: !GetAtt ECS.Outputs.Cluster
         RepositoryName: datadog/agent
@@ -163,12 +180,13 @@ Resources:
           Value: !Sub ${StackName}-${Environment}
     DependsOn:
       - DB
+
   # Parameters /L2-Demo/DB_USER and /L2-Demo/DB_PASSWORD must exist on SSM
   DB:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Retain
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/datastore/database.yml"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/datastore/database.yml"
       Parameters:
         DBClass: db.t2.small
         DBAllocatedStorage: 20
@@ -184,7 +202,7 @@ Resources:
   # RedisStack:
   #   Type: AWS::CloudFormation::Stack
   #   Properties:
-  #     TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/datastore/elasticache.yml"
+  #     TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/datastore/elasticache.yml"
   #     Parameters:
   #       VPCSubnets: !Join [ ",", [!GetAtt [VPC, Outputs.PrivateSubnet1AID], !GetAtt [VPC, Outputs.PrivateSubnet2AID]]]
   #       VpcId: !GetAtt VPC.Outputs.VPCID
@@ -198,11 +216,11 @@ Resources:
   SSM:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/management/ssm.yml"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/management/ssm.yml"
       Parameters:
         ASGName: !GetAtt ECS.Outputs.AutoScalingGroupName
-        QSS3BucketName: !Ref QSS3BucketName
-        QSS3KeyPrefix: !Ref QSS3KeyPrefix
+        S3BucketName: !Ref S3BucketName
+        S3KeyPrefix: !Ref S3KeyPrefix
         Environment: !Ref Environment
         StackName: !Ref StackName
       Tags:
@@ -211,15 +229,15 @@ Resources:
   Jenkins:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/continuous-integration/master.yml"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/continuous-integration/master.yml"
       Parameters:
         VpcId: !GetAtt VPC.Outputs.VPCID
-        PublicSubnetsIds: !Join [ ",", [!GetAtt [VPC, Outputs.PublicSubnet1ID], !GetAtt [VPC, Outputs.PublicSubnet2ID]]]
-        PrivateSubnetsIds: !Join [ ",", [!GetAtt [VPC, Outputs.PrivateSubnet1AID], !GetAtt [VPC, Outputs.PrivateSubnet2AID]]]
+        PublicSubnetsIds: !GetAtt VPC.Outputs.PublicSubnetsIds
+        PrivateSubnetsIds: !GetAtt VPC.Outputs.PrivateSubnetsIds
         ClusterName: Jenkins
         KeyPair: !Ref KeyPair
-        QSS3BucketName: !Ref QSS3BucketName
-        QSS3KeyPrefix: !Sub ${QSS3KeyPrefix}/continuous-integration
+        S3BucketName: !Ref S3BucketName
+        S3KeyPrefix: !Sub ${S3KeyPrefix}/continuous-integration
         StackName: !Ref StackName
         Environment: Dev
       Tags:
@@ -228,11 +246,11 @@ Resources:
   Clair:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/coreos-clair/clair-template.yml"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/coreos-clair/clair-template.yml"
       Parameters:
         VpcId: !GetAtt VPC.Outputs.VPCID
-        PublicSubnets: !Join [ ",", [!GetAtt [VPC, Outputs.PublicSubnet1ID], !GetAtt [VPC, Outputs.PublicSubnet2ID]]]
-        PrivateSubnets: !Join [ ",", [!GetAtt [VPC, Outputs.PrivateSubnet1AID], !GetAtt [VPC, Outputs.PrivateSubnet2AID]]]
+        PublicSubnets: !GetAtt VPC.Outputs.PublicSubnetsIds
+        PrivateSubnets: !GetAtt VPC.Outputs.PrivateSubnetsIds
         ECSClusterName: CoreOS-Clair
         ECRRepositoryUri: 695292474035.dkr.ecr.us-west-2.amazonaws.com/coreos-clair:latest
       Tags:

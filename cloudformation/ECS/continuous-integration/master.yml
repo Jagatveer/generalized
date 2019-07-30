@@ -16,13 +16,13 @@ Parameters:
   KeyPair:
     Description: Amazon EC2 Key Pair for the ASG launch configuration
     Type: AWS::EC2::KeyPair::KeyName
-  QSS3BucketName:
+  S3BucketName:
     AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
     Default: l2-demo
     Type: String
     ConstraintDescription: Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)
     Description: S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)
-  QSS3KeyPrefix:
+  S3KeyPrefix:
     AllowedPattern: ^[0-9a-zA-Z-/]*$
     Default: L2-Demo
     Type: String
@@ -39,7 +39,7 @@ Resources:
   ALB:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/load-balancers.yml
+      TemplateURL: !Sub https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/load-balancers.yml
       Parameters:
         VpcId: !Ref VpcId
         SubnetsIds: !Join [",", !Ref PublicSubnetsIds]
@@ -52,7 +52,7 @@ Resources:
   ECS:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/ecs-cluster.yml
+      TemplateURL: !Sub https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/ecs-cluster.yml
       Parameters:
         VpcId: !Ref VpcId
         SubnetIds: !Join [",", !Ref PrivateSubnetsIds]
@@ -77,7 +77,7 @@ Resources:
   Jenkins:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/${QSS3BucketName}/${QSS3KeyPrefix}/services/jenkins.yml
+      TemplateURL: !Sub https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/services/jenkins.yml
       Parameters:
         VpcId: !Ref VpcId
         Cluster: !GetAtt ECS.Outputs.Cluster

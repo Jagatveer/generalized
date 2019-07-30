@@ -12,13 +12,13 @@ Parameters:
   ASGName:
     Type: String
     Description: The name of the ASG to deploy the new AMI
-  QSS3BucketName:
+  S3BucketName:
     AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
     Default: ro-resourcebucket
     Type: String
     ConstraintDescription: Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)
     Description: S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)
-  QSS3KeyPrefix:
+  S3KeyPrefix:
     AllowedPattern: ^[0-9a-zA-Z-/]*$
     Default: demo
     Type: String
@@ -490,8 +490,8 @@ Resources:
     Type: AWS::Lambda::Function
     Properties: 
       Code:
-        S3Bucket: !Ref QSS3BucketName
-        S3Key: !Sub ${QSS3KeyPrefix}/management/updateParameter.zip
+        S3Bucket: !Ref S3BucketName
+        S3Key: !Sub ${S3KeyPrefix}/management/updateParameter.zip
       Description: Lambda to update AMI id in parameter store
       Handler: updateParameter.lambda_handler
       Role: !GetAtt UpdateParameterLambdaRole.Arn
@@ -504,8 +504,8 @@ Resources:
     Type: AWS::Lambda::Function
     Properties: 
       Code:
-        S3Bucket: !Ref QSS3BucketName
-        S3Key: !Sub ${QSS3KeyPrefix}/management/updateASG.zip
+        S3Bucket: !Ref S3BucketName
+        S3Key: !Sub ${S3KeyPrefix}/management/updateASG.zip
       Description: Lambda to update AMI in Auto Scaling Group
       Handler: updateASG.lambda_handler
       Role: !GetAtt UpdateASGLambdaRole.Arn
