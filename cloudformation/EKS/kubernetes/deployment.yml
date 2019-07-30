@@ -13,6 +13,8 @@ spec:
     metadata:
       labels:
         app: goapp
+      # annotations:
+      #   iam.amazonaws.com/role: arn:aws:iam::695292474035:role/L2-EKS-Demo-EKS-8STO3KM9813D-ApplicationRole-1VSZAI6SSXPVM 
     spec:
       containers:
       - name: goapp
@@ -29,3 +31,9 @@ spec:
             value: us-west-2
           - name: DB_HOST
             value: l2-eks-demo-dev.ckwyc0irvefm.us-west-2.rds.amazonaws.com
+          - name: DD_AGENT_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: DD_TRACE_AGENT_PORT
+            value: "8126"

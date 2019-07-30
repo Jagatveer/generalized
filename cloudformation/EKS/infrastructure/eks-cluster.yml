@@ -74,6 +74,7 @@ Parameters:
 Resources:
 
   ############## Roles ##############
+
   NodeInstanceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -85,7 +86,15 @@ Resources:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-          - PolicyName: !Sub task-${AWS::StackName}
+          # - PolicyName: !Sub kube2iam-${AWS::StackName}
+          #   PolicyDocument:
+          #     Statement:
+          #       - Effect: Allow
+          #         Action:
+          #           - sts:AssumeRole
+          #         Resource:
+          #           - "*"
+          - PolicyName: !Sub ssm-${AWS::StackName}
             PolicyDocument:
               Statement:
                 - Effect: Allow
@@ -107,6 +116,32 @@ Resources:
       Roles:
         - !Ref NodeInstanceRole
 
+  ApplicationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt NodeInstanceRole.Arn
+            Action: sts:AssumeRole
+      Policies:
+          - PolicyName: !Sub ssm-${AWS::StackName}
+            PolicyDocument:
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - ssm:*
+                    - kms:*
+                  Resource:
+                    - "*"
+      Path: "/"
+
   EKSServiceRole:
     Description: Allows EKS to manage clusters on your behalf.
     Type: AWS::IAM::Role
@@ -124,6 +159,7 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
 
   ######### Security Groups #########
+
   NodeSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -212,6 +248,7 @@ Resources:
       - ControlPlaneSecurityGroup
 
   ############# Cluster #############
+  
   Cluster:
     Type: AWS::EKS::Cluster
     Properties:
@@ -235,7 +272,7 @@ Resources:
         - Key: Name
           Value: !Sub ${ClusterName}-NodeGroup
           PropagateAtLaunch: true
-        - Key: !Sub kubernetes.io/cluster/${ClusterName}
+        - Key: !Sub kubernetes.io/cluster/${ClusterName}-${StackName}-${Environment}
           Value: owned
           PropagateAtLaunch: true
     UpdatePolicy:
@@ -302,6 +339,12 @@ Outputs:
     Value: !GetAtt NodeInstanceRole.Arn
     Export:
       Name: !Sub ${StackName}-${Environment}:NodeInstanceRole
+
+  ApplicationRole:
+    Description: The application role
+    Value: !GetAtt ApplicationRole.Arn
+    Export:
+      Name: !Sub ${StackName}-${Environment}:ApplicationRole
 
   NodeSecurityGroup:
     Description: The security group for the node group
