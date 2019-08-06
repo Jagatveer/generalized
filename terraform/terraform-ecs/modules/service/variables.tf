@@ -34,12 +34,12 @@ variable "app_count" {
 
 variable "cpu" {
   description = "Container CPU units to provision (1 vCPU = 1024 CPU units)"
-  default     = "35840"
+  default     = "1024"
 }
 
 variable "memory" {
   description = "Container memory to provision (in MiB)"
-  default     = "70000"
+  default     = "1024"
 }
 
 variable "health_check" {
