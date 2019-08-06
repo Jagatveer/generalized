@@ -16,3 +16,6 @@ variable "app-name" {
 variable "alb_certificate" {
   description = "The ca_certificate to use in the application"
 }
+variable "app-image" {
+  description = "The image to use in the application"
+}

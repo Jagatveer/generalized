@@ -9,3 +9,5 @@ region        = "us-east-1"
 app-name = "qa"
 
 alb_certificate = ""
+
+app-image = "695292474035.dkr.ecr.us-east-1.amazonaws.com/braulio-siq:latest"

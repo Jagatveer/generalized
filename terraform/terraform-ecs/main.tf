@@ -28,7 +28,7 @@ module "service" {
   app_name   = "jenkins-siq"
   vpc_id     = "${module.vpc.vpc_id}"
   region     = "${var.region}"
-  app_image  = "jenkins/jenkins:lts"
+  app_image  = "${var.app-image}"
   cluster_id = "${module.ecs.ecs}"
   listener   = "${module.alb.http_listener_arn}"
 }
