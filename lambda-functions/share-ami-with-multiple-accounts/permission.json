@@ -4,14 +4,12 @@
         {
             "Sid": "VisualEditor0",
             "Effect": "Allow",
-            "Action": "ec2:ModifyImageAttribute",
-            "Resource": "*"
-        },
-        {
-            "Effect": "Allow",
             "Action": [
-                "logs:CreateLogGroup",
+                "ec2:DescribeImages",
                 "logs:CreateLogStream",
+                "ec2:ModifySnapshotAttribute",
+                "ec2:ModifyImageAttribute",
+                "logs:CreateLogGroup",
                 "logs:PutLogEvents"
             ],
             "Resource": "*"
