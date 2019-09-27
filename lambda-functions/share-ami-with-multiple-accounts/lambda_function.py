@@ -20,7 +20,8 @@ def lambda_handler(event, context):
         share_ami_with_account(account_ids, image_and_snap_id['ImageId'])
         create_volume_permission_with_account(account_ids, image_and_snap_id['SnapshotIds'])
         image_ids.append(image_and_snap_id['ImageId'])
-    add_tag_image(image_ids)
+    if image_ids:
+        add_tag_image(image_ids)
 
 def get_to_be_shared_amis():
     client = boto3.client('ec2')
