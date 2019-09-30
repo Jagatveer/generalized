@@ -10,7 +10,9 @@ pp = pprint.PrettyPrinter(indent=4)
 
 def lambda_handler(event, context):
     
-    account_ids = {'695292474035'}
+    accounts = get_accounts()
+    print(accounts)
+    
     image_ids = get_to_be_shared_amis(account_ids)
     copied_image_ids = []
     for image_id in image_ids:
@@ -34,6 +36,26 @@ def lambda_handler(event, context):
                 snapshot_ids.append(block_device['Ebs']['SnapshotId'])
             share_ami_with_account(account_ids, copied_image_id['image_id'], copied_image_id['account_id'])
             create_volume_permission_with_account(account_ids, snapshot_ids, copied_image_id['account_id'])
+
+def get_accounts():
+    client = boto3.client('organizations')
+    accounts = set()
+    response = client.list_accounts()
+    for account in response['Accounts']:
+        accounts.add( account['Id'] );
+    next_token = response['NextToken']
+    
+    while 'NextToken' in response and response['NextToken'] is not None and response['NextToken'] != '':
+        response = client.list_accounts(NextToken=str(response['NextToken']))
+        for account in response['Accounts']:
+            accounts.add( account['Id'] );
+        if 'NextToken' not in response:
+            break
+            next_token = response['NextToken']
+    
+    current_account_id = boto3.client('sts').get_caller_identity().get('Account')
+    accounts.remove(current_account_id)
+    return accounts
 
 def copy_ami(image_id):
     client = boto3.client('ec2')
