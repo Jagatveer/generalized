@@ -10,9 +10,9 @@ pp = pprint.PrettyPrinter(indent=4)
 
 def lambda_handler(event, context):
     
-    accounts = get_accounts()
+    account_ids = get_accounts()
     print(accounts)
-    
+
     image_ids = get_to_be_shared_amis(account_ids)
     copied_image_ids = []
     for image_id in image_ids:
