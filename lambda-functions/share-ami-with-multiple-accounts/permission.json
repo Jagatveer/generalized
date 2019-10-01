@@ -10,7 +10,8 @@
                 "ec2:ModifySnapshotAttribute",
                 "ec2:ModifyImageAttribute",
                 "logs:CreateLogGroup",
-                "logs:PutLogEvents"
+                "logs:PutLogEvents",
+                "ec2:CreateTags"
             ],
             "Resource": "*"
         }
