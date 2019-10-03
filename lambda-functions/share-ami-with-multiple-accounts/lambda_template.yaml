@@ -30,7 +30,7 @@ Parameters:
     Description: "Locaction folder of the Lambda code example: compute/  -- (Optional)"
   MasterAccountNumber:
     Type: String
-    Default: ""
+    Default: "907720735728"
     Description: "Master Organization Account Number (Without '-')"
   AccountType:
     Type: String
