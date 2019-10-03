@@ -1,17 +1,19 @@
 # share-ami-to-accounts
 
 ## lambda Code:
-Function code of Lambda Resource is in lambda_function.py
+Function code of Lambda Resource is in developers.py or master.py. Both scripts are ZIP.  
 
 ## lambda Permissions:
-Permission attached with lambda Resource is in permission.json
+Permission attached with lambda Resource is in permission.json and master_permissions.json
 
 ## Current Functionality
 From individual Account
-- Right now, our script is sharing single AMI from a account to multiple accounts
-- Add "create volume" permissions to the following associated snapshots when creating permissions
-- Gets all the newly shared  AMIs using tags
+- Create an S3 Bucket and copy the content of this repository in the root of the bucket.
+- Deploy `lambda_template.yaml` with the *developers* option and make sure to enter the account number `907720735728`.
+- After deployment tag any AMI of the SAME region with `SHARED = true`.
+- Every night the images will be shared with the master account where they will be shared with the rest of Lumina's team.
 
 From Master Account
-- List all org accounts and then share the newly created copies with the listed accounts
-- Add "create volume" permissions to the following associated snapshots when creating permissions
+- Create an S3 Bucket and copy the content of this repository in the root of the bucket.
+- Deploy `lambda_template.yaml` with the *master* option.
+- Every night the images will be copied and shared with the rest of Lumina's team.

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Life Cycle for zero downtime ECS"
+Description: "Developers account AMI sharing with Master Org Account"
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -7,6 +7,14 @@ Metadata:
           default: "Stack"
         Parameters:
           - StackName
+      - Label:
+          defualt: "Lambda settings"
+        Parameters:
+          - S3BucketName
+          - S3Prefix
+          - AccountType
+          - MasterAccountNumber
+
 Parameters:
   StackName:
     Type: String
@@ -16,23 +24,66 @@ Parameters:
     Type: String
     Default: ""
     Description: "Name of the S3 Bucket"
-  S3Key:
+  S3Prefix:
     Type: String
     Default: ""
-    Description: "Locaction of the Lambda code example: compute/index.zip"
+    Description: "Locaction folder of the Lambda code example: compute/  -- (Optional)"
+  MasterAccountNumber:
+    Type: String
+    Default: ""
+    Description: "Master Organization Account Number (Without '-')"
+  AccountType:
+    Type: String
+    Default: developers
+    AllowedValues:
+      - developers
+      - master
+    Description: "Account Type where the settings are being placed"
+
+Conditions:
+  Developers: !Equals [!Ref AccountType, "developers"]
+  Master: !Equals [!Ref AccountType, "master"]
+  PrefixExist: !Not [!Equals [!Ref S3Prefix, ""]]
 
 Resources:
+
   LambdaFunction:
     Type: "AWS::Lambda::Function"
     Properties:
       Code:
         S3Bucket: !Ref S3BucketName
-        S3Key: !Ref S3Key
+        S3Key: !If
+          - PrefixExist
+          - !Sub "${S3Prefix}/${AccountType}.zip"
+          - !Sub "${AccountType}.zip"
       Runtime: python3.7
-      Role: !GetAtt LambdaRole.Arn
-      Timeout: 600
-      Handler: "lambda_function.lambda_handler"
-  LambdaRole:
+      Role: !If
+        - Developers
+        - !GetAtt DevelopersRole.Arn
+        - !GetAtt MasterRole.Arn
+      Timeout: 900
+      Handler: !Sub "${AccountType}.lambda_handler"
+      Environment:
+        Variables:
+          MASTER_ACCOUNT: !Ref MasterAccountNumber
+
+  LambdaFunctionPerms:
+    Condition: Master
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Code:
+        S3Bucket: !Ref S3BucketName
+        S3Key: !If
+          - PrefixExist
+          - !Sub "${S3Prefix}/${AccountType}_perms.zip"
+          - !Sub "${AccountType}_perms.zip"
+      Runtime: python3.7
+      Role: !GetAtt MasterRole.Arn
+      Timeout: 900
+      Handler: !Sub "${AccountType}_perms.lambda_handler"
+
+  DevelopersRole:
+    Condition: Developers
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -48,7 +99,7 @@ Resources:
         - PolicyName: EC2Modify-Permissions
           PolicyDocument:
             Statement:
-            - 
+            -
               Effect: Allow
               Action:
                 - "ec2:DescribeImages"
@@ -59,15 +110,51 @@ Resources:
                 - "logs:CreateLogGroup"
                 - "logs:PutLogEvents"
               Resource: '*'
-  LambdaSchedule: 
+
+  MasterRole:
+    Condition: Master
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [lambda.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Path: /
+      Policies:
+        - PolicyName: EC2Modify-Permissions
+          PolicyDocument:
+            Statement:
+            -
+              Effect: Allow
+              Action:
+                - "ec2:DescribeImages"
+                - "logs:CreateLogStream"
+                - "ec2:ModifySnapshotAttribute"
+                - "ec2:CreateTags"
+                - "ec2:ModifyImageAttribute"
+                - "logs:CreateLogGroup"
+                - "logs:PutLogEvents"
+                - "organizations:ListAccounts"
+                - "ec2:CopyImage"
+              Resource: '*'
+
+  LambdaSchedule:
     Type: AWS::Events::Rule
-    Properties: 
+    Properties:
       Description: "EventRule"
-      ScheduleExpression: "cron(0 12 * * ? *)"
+      ScheduleExpression: !If
+        - Developers
+        - "cron(0 12 * * ? *)"
+        - "cron(0 14 * * ? *)"
       State: "ENABLED"
       Targets:
         - Arn: !Sub ${LambdaFunction.Arn}
           Id: LambdaSchedule
+
   LambdaSchedulePermission:
     Type: "AWS::Lambda::Permission"
     Properties:
@@ -75,3 +162,23 @@ Resources:
       FunctionName: !Sub ${LambdaFunction.Arn}
       Principal: 'events.amazonaws.com'
       SourceArn: !Sub ${LambdaSchedule.Arn}
+
+  LambdaSchedulePerms:
+    Condition: Master
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "EventRule"
+      ScheduleExpression: "cron(0 16 * * ? *)"
+      State: "ENABLED"
+      Targets:
+        - Arn: !Sub ${LambdaFunctionPerms.Arn}
+          Id: LambdaSchedulePerms
+
+  LambdaPermsSchedulePermission:
+    Condition: Master
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Sub ${LambdaFunctionPerms.Arn}
+      Principal: 'events.amazonaws.com'
+      SourceArn: !Sub ${LambdaSchedulePerms.Arn}
