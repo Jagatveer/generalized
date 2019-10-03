@@ -34,11 +34,11 @@ ParameterGroups:
       - MasterAccountNumber
 ```
 
-StackName: Is just a name.
-S3BucketName: Is the name of the bucket where the contents of this repo are located.
-S3Prefix: (Optional), if a prefix is needed.
-AccountType: Master or Developer, depending on the account where being deployed.
-MasterAccountNumber. (Developers only) this is the master org account number. `907720735728` 
+* StackName: Is just a name.
+* S3BucketName: Is the name of the bucket where the contents of this repo are located.
+* S3Prefix: (Optional), if a prefix is needed.
+* AccountType: Master or Developer, depending on the account where being deployed.
+* MasterAccountNumber. (Developers only) this is the master org account number. `907720735728` 
 
 From individual Account
 - Create an S3 Bucket and copy the content of this repository in the root of the bucket.
