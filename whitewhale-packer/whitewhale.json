@@ -1,0 +1,44 @@
+{
+  "variables": {
+    "aws_access_key": "",
+    "aws_secret_key": ""
+  },
+  "builders": [{
+    "type": "amazon-ebs",
+    "access_key": "{{user `aws_access_key`}}",
+    "secret_key": "{{user `aws_secret_key`}}",
+    "region": "us-west-2",
+    "source_ami": "ami-06d51e91cea0dac8d",
+    "instance_type": "t2.micro",
+    "ssh_username": "ubuntu",
+    "ami_name": "web-node-nclouds-whitewhale {{timestamp}}"
+  }],
+  "provisioners": [
+    {
+        "destination": "/home/ubuntu/",
+        "source": "files/apcu.ini",
+        "type": "file"
+    },
+    {
+        "destination": "/home/ubuntu/",
+        "source": "files/php.ini",
+        "type": "file"
+    },
+    {
+        "destination": "/home/ubuntu/",
+        "source": "files/expires.conf",
+        "type": "file"
+    },
+    {
+        "destination": "/home/ubuntu/",
+        "source": "files/deflate.conf",
+        "type": "file"
+    },
+    {
+        "type": "shell",
+          "scripts": [
+            "scripts/setup.sh"
+          ]
+    } 
+  ]
+}
