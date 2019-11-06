@@ -10,3 +10,11 @@ packer build -var 'aws_access_key=${}' -var 'aws_secret_key=${}' whitewhale.json
 ## Parameters
 - aws access key for AWS authentication
 - aws secret key for AWS authentication
+
+## Structure
+- Files
+
+Files need to be on Ubuntu Instance
+- Scripts
+
+Shell Script to install all configurations and move files to respective directories
