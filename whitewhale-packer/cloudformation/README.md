@@ -12,7 +12,7 @@ This repository contains the templates for the AWS infrastructure of the *Web EF
 
 ## Deployment
 
-All the infrastructure is deployed through Cloud Formatinon. To make the deployment easier the repository contains a CLI script in bash in the *[commands](commands)* folder. However you can deploy everything using *aws cli* commands
+All the infrastructure is deployed through Cloud Formatinon. To make the deployment easier the repository contains a CLI script in bash in the *[commands](commands)* folder. However you can deploy everything using *aws cli* commands (you need the aws-cli installed)
 
 ### CLI
 
@@ -24,7 +24,14 @@ The CLI is simple, it handles three commands:
 
 All the commands accept an `-e | --environment` flag which specifies which environment and configuration to use (The default is `dev`)
 
-The region, stack name and templates bucket to use can be set in the *.env* file in the commands folder
+The CLI needs three parameters in a *.env* file located in the commands folder: The region, stack name and templates bucket name (You need to create an S3 bucket for the CloudFormation templates)
+
+```
+export REGION="us-east-1"
+export STACK_NAME="white-whale"
+export BUCKET_NAME="cf-templates-white-whale-955369796294"
+```
+To use the CLI:
 
 ```console
 $ ./commands/cli help

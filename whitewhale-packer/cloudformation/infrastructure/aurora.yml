@@ -13,8 +13,8 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
     Description: Subnet ids for the RDS instances
 
-  SourceSecurityGroup:
-    Type: AWS::EC2::SecurityGroup::Id
+  SourceSecurityGroupIds:
+    Type: List<String>
     Description: Allow ingress from this security group
     ConstraintDescription: Please provide valid ids for the security group
 
@@ -113,7 +113,9 @@ Resources:
       GroupDescription: Allow connections to the database port only from the source security group
       VpcId: !Ref VpcId
       SecurityGroupIngress:
-      - { IpProtocol: 6, SourceSecurityGroupId: !Ref SourceSecurityGroup, FromPort: !Ref DBPort, ToPort: !Ref DBPort }
+      - { IpProtocol: 6, SourceSecurityGroupId: !Select [ 0, !Ref SourceSecurityGroupIds ], FromPort: !Ref DBPort, ToPort: !Ref DBPort }
+      - { IpProtocol: 6, SourceSecurityGroupId: !Select [ 1, !Ref SourceSecurityGroupIds ], FromPort: !Ref DBPort, ToPort: !Ref DBPort }
+      - { IpProtocol: 6, SourceSecurityGroupId: !Select [ 2, !Ref SourceSecurityGroupIds ], FromPort: !Ref DBPort, ToPort: !Ref DBPort }
       # - { IpProtocol: 6, CidrIp: "10.1.0.0/16", FromPort: !Ref DBPort, ToPort: !Ref DBPort }
       SecurityGroupEgress:
       - { IpProtocol: -1, CidrIp: "0.0.0.0/0" }

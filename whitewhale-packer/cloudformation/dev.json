@@ -13,7 +13,7 @@
   },
   {
     "ParameterKey" : "ImageId",
-    "ParameterValue" : "ami-0c1e1174864a05ac6" 
+    "ParameterValue" : "ami-01e917dc05de5b1de" 
   },
   {
     "ParameterKey" : "S3BucketName",

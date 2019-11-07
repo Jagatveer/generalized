@@ -115,7 +115,7 @@ Resources:
       Parameters:
         VpcId: !GetAtt VPC.Outputs.VpcId
         SubnetIds: !GetAtt VPC.Outputs.PublicSubnetIds
-        Identifier: white-whale
+        Identifier: white-whale-bastion
         InstanceType: !Ref BastionInstanceType
         ImageId: ami-04b9e92b5572fa0d1
         KeyName: !Ref KeyName
@@ -134,15 +134,41 @@ Resources:
       TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/web-host.yml"
       Parameters:
         VpcId: !GetAtt VPC.Outputs.VpcId
-        SubnetId: !GetAtt VPC.Outputs.PrivateSubnet1
-        Identifier: web-node-1
-        InstanceType: !Ref InstanceType
+        SubnetId: !GetAtt VPC.Outputs.PrivateSubnet1Id
+        Identifier: white-whale-web1
+        InstanceType: !Ref WebInstanceType
         ImageId: !Ref ImageId
         KeyName: !Ref KeyName
         SourceSecurityGroupId: !GetAtt ALB.Outputs.SecurityGroupId
-        BastionSecurityGroupId:
-        HttpListenerArn:
-        HttpsListenerArn:
+        BastionSecurityGroupId: !GetAtt BastionHost.Outputs.SecurityGroupId
+        HttpListenerArn: !GetAtt ALB.Outputs.HttpListenerArn
+        HttpsListenerArn: "" #!GetAtt ALB.Outputs.HttpsListenerArn
+        ListenerRulePriority: 2
+        # ####### EFS Mounts #######
+        EfsFileSystemDNS: !GetAtt EFS.Outputs.FileSystemDNS
+        EfsMountPath: /home
+        EfsMountSource: /
+        EfsSecurityGroupId: !GetAtt EFS.Outputs.SecurityGroupId
+        OwnerName: !Ref OwnerName
+        StackName: !Ref StackName
+        Environment: !Ref Environment
+
+  WebNode2:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/web-host.yml"
+      Parameters:
+        VpcId: !GetAtt VPC.Outputs.VpcId
+        SubnetId: !GetAtt VPC.Outputs.PrivateSubnet1Id
+        Identifier: white-whale-web2
+        InstanceType: !Ref WebInstanceType
+        ImageId: !Ref ImageId
+        KeyName: !Ref KeyName
+        SourceSecurityGroupId: !GetAtt ALB.Outputs.SecurityGroupId
+        BastionSecurityGroupId: !GetAtt BastionHost.Outputs.SecurityGroupId
+        HttpListenerArn: !GetAtt ALB.Outputs.HttpListenerArn
+        HttpsListenerArn: "" #!GetAtt ALB.Outputs.HttpsListenerArn
+        ListenerRulePriority: 3
         # ####### EFS Mounts #######
         EfsFileSystemDNS: !GetAtt EFS.Outputs.FileSystemDNS
         EfsMountPath: /home
@@ -157,22 +183,26 @@ Resources:
     Properties:
       TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/aurora.yml"
       Parameters:
-        Identifier: ecomm-billing-aurora
+        Identifier: white-whale-aurora
         VpcId: !GetAtt VPC.Outputs.VpcId
         SubnetIds: !GetAtt VPC.Outputs.PrivateSubnetIds
-        SourceSecurityGroup: !Ref
+        SourceSecurityGroupIds: !Join
+        - ","
+        - - !GetAtt BastionHost.Outputs.SecurityGroupId
+          - !GetAtt WebNode1.Outputs.SecurityGroupId
+          - !GetAtt WebNode2.Outputs.SecurityGroupId
         DBSnapshot: ""
-        DBInstanceClass: !Ref DBInstanceClass
+        DBInstanceClass: db.t2.small
         DBFamily: aurora-mysql5.7
         DBEngine: aurora-mysql
         DBEngineVersion: 5.7.12
         DBPort: 3306
         DBName: whitewhaledatabase
-        DBUser: admin
+        DBUsername: admin
         DBStorageEncrypted: true
         PreferredBackupWindow: 17:00-19:00
         PreferredMaintenanceWindow: Sun:19:00-Sun:23:00
-        BackupRetentionPeriod: !Ref BackupRetentionPeriod
+        BackupRetentionPeriod: 7
         OwnerName: !Ref OwnerName
         StackName: !Ref StackName
         Environment: !Ref Environment

@@ -1,8 +1,7 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
 Description: >-
-  Efabless EFS template.
-  Author: Ahmed A. Agiza (ahmed.agiza@efabless.com)
+  EFS file system
 
 Parameters:
   

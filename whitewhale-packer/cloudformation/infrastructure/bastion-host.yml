@@ -192,7 +192,11 @@ Resources:
             02_start_cfn_hup: 
               command: !Sub |
                 systemctl start cfn-hup.service
-            03_mount_efs:
+            03_backup_user_directory:
+              command: !Sub |
+                mkdir -p /tmp/ubuntu
+                cp -rTp /home/ubuntu/ /tmp/ubuntu
+            04_mount_efs:
               command: !Sub |
                 DIR_SRC=${EfsFileSystemDNS}
                 MNT_SRC=${EfsMountSource}
@@ -201,6 +205,12 @@ Resources:
                 mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport $DIR_SRC:$MNT_SRC $DIR_TGT
                 cp -p /etc/fstab /etc/fstab.back-$(date +%F)
                 echo -e "$DIR_SRC:$MNT_SRC      $DIR_TGT    nfs   defaults     0      0" | tee -a /etc/fstab
+            05_restore_user_directory:
+              command: !Sub |
+                if [ ! -d "/home/ubuntu" ]; then
+                  mkdir -p /home/ubuntu
+                  cp -rTp /tmp/ubuntu/ /home/ubuntu/
+                fi
 
   AutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -216,7 +226,7 @@ Resources:
       - Default
       Tags:
       - Key: Name
-        Value: !Sub ${Identifier}-${Environment}-ec2-bastion
+        Value: !Sub ${Identifier}-${Environment}-ec2-node
         PropagateAtLaunch: true
       - Key: Owner
         Value: !Ref OwnerName
