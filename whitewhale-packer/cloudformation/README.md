@@ -9,6 +9,7 @@ This repository contains the templates for the AWS infrastructure of the *Web EF
 - **EFS**: An EFS file system and mount targets on each of the private subnets
 - **Bastion Host**: An EC2 bastion host deployed in one of the public subnets that have a mount on the EFS volume
 - **2 Web nodes**: A pair of EC2 instances behind the load balancer and with mounts of the EFS volume
+- **Aurora cluster**: An Aurora cluster with MySql compatibility deployed in the private subnets
 
 ## Deployment
 
