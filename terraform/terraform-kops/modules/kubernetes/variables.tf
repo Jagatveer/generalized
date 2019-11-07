@@ -1,16 +1,4 @@
-variable "cluster_name" {}
-variable "dns_zone" {}
-variable "kubernetes_version" {}
-variable "state_bucket" {}
-variable "node_image" {}
-variable "vpc_id" {}
-variable "vpc_cidr" {}
-variable "region" {}
-variable "worker_node_type" {}
-variable "min_worker_nodes" {}
-variable "max_worker_nodes" {}
-variable "master_node_type" {}
-
+variable "vpc" {}
 
 variable "public_subnets" {
   type        = "list"
@@ -20,4 +8,21 @@ variable "public_subnets" {
 variable "private_subnets" {
   type        = "list"
   default     = []
+}
+
+variable "kops_cluster" {
+  type = object({
+    cluster_name = string
+    dns_zone = string
+    kubernetes_version = string
+    worker_node_type = string
+    min_worker_nodes  = string
+    max_worker_nodes = string
+    master_node_type  = string
+    region = string
+    state_bucket = string
+    node_image = string
+    nodes=list(any)
+    addons=list(string)
+  })
 }

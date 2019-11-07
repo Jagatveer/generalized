@@ -16,11 +16,11 @@ ${private_subnets}
 publicSubnets:
 ${public_subnets}
 
-node:
-  instanceType: ${worker_node_type}
-  minSize: ${min_worker_nodes}
-  maxSize: ${max_worker_nodes}
-  role: agent
+nodes:
+${nodes}
+
+addons:
+${addons}
 
 master:
   instanceType: ${master_node_type}

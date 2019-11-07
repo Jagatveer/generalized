@@ -5,6 +5,10 @@ metadata:
   creationTimestamp: null
   name: {{.cluster}}.{{.dnsZone}}
 spec:
+  addons:
+{{range $i, $addon := .addons}}
+  - manifest: {{$addon.name}}
+{{end}}
   api:
     loadBalancer:
       type: Public
@@ -12,7 +16,7 @@ spec:
     rbac: {}
   channel: stable
   cloudProvider: aws
-  clusterDNSDomain: cluster.local
+  clusterDNSDomain: {{.cluster}}.{{.dnsZone}}
   configBase: s3://{{.bucket}}/{{.cluster}}.{{.dnsZone}}
   configStore: s3://{{.bucket}}/{{.cluster}}.{{.dnsZone}}
   docker:
@@ -107,7 +111,11 @@ spec:
     provider: CoreDNS
     cacheMaxConcurrent: 150
     cacheMaxSize: 1000
+    {{ if and .dnsZone (eq .dnsZone "k8s.local") }}
     domain: cluster.local
+    {{ else }}
+    domain: {{.cluster}}.{{.dnsZone}}
+    {{ end }}
     replicas: 2
     serverIP: 100.64.0.10
   kubeProxy:
@@ -129,7 +137,11 @@ spec:
     cgroupRoot: /
     cloudProvider: aws
     clusterDNS: 100.64.0.10
+    {{ if and .dnsZone (eq .dnsZone "k8s.local") }}
     clusterDomain: cluster.local
+    {{ else }}
+    clusterDomain: {{.cluster}}.{{.dnsZone}}
+    {{ end }}
     enableDebuggingHandlers: true
     evictionHard: memory.available<100Mi,nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<10%,imagefs.inodesFree<5%
     featureGates:
@@ -153,7 +165,11 @@ spec:
     cgroupRoot: /
     cloudProvider: aws
     clusterDNS: 100.64.0.10
+    {{ if and .dnsZone (eq .dnsZone "k8s.local") }}
     clusterDomain: cluster.local
+    {{ else }}
+    clusterDomain: {{.cluster}}.{{.dnsZone}}
+    {{ end }}
     enableDebuggingHandlers: true
     evictionHard: memory.available<100Mi,nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<10%,imagefs.inodesFree<5%
     featureGates:
