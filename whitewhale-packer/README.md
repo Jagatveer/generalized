@@ -1,3 +1,9 @@
+#use case: Need to setup/configure SFTP and Bastion on the same node . 
+- EFS as a centralized storage and creating sftp users on efs as well. 
+- Mount EFS on /home directory 
+- Configure SFTP chroot jailed users on efs
+- Apache user need to access individual SFTP user directory for vhost rootDoucment path.
+
 # White Whale Packer Image
 
 ## Run this command for building this image.
