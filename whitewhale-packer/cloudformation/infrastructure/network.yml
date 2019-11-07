@@ -1,0 +1,528 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Resources to create a VPC and routing
+  It includes a VPC with three public subnets and three private subnets,
+  an ACL for the subets, one NAT Gateway
+  and default routes for them in the private subnets
+
+Parameters:
+
+  Identifier:
+    Type: String
+    Description: A name identifier to tag the networking resources
+
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: IPV4 CIDR block for the VPC
+    AllowedPattern: "(\\d{1,3}\\.){3}\\d{1,3}/(\\d{1,2})"
+    ConstraintDescription: You must enter a valid CIDR string
+
+  PublicSubnet1Cidr:
+    Type: String
+    Default: 10.0.10.0/24
+    Description: IPV4 CIDR block for the public subnet in the first Availability Zone
+
+  PublicSubnet2Cidr:
+    Type: String
+    Default: 10.0.11.0/24
+    Description: IPV4 CIDR block for the public subnet in the second Availability Zone
+
+  PublicSubnet3Cidr:
+    Type: String
+    Default: 10.0.12.0/24
+    Description: IPV4 CIDR block for the public subnet in the third Availability Zone
+
+  PrivateSubnet1Cidr:
+    Type: String
+    Default: 10.0.20.0/24
+    Description: IPV4 CIDR block for the private subnet in the first Availability Zone
+
+  PrivateSubnet2Cidr:
+    Type: String
+    Default: 10.0.21.0/24
+    Description: IPV4 CIDR block for the private subnet in the second Availability Zone
+
+  PrivateSubnet3Cidr:
+    Type: String
+    Default: 10.0.22.0/24
+    Description: IPV4 CIDR block for the private subnet in the third Availability Zone
+
+  SetNatGateway:
+    Type: String
+    Default: true
+    Description: Whether to deploy a Nat Gateway or not
+    AllowedValues:
+      - true
+      - false
+    ConstraintDescription: Value must be true or false
+
+  NatGatewayHA:
+    Type: String
+    Default: false
+    Description: Wheter to add redundancy for high availability for the Nat Gateway
+    AllowedValues:
+      - true
+      - false
+    ConstraintDescription: Value must be true or false
+
+  OwnerName:
+    Type: String
+    Default: nclouds
+    Description: An arbitrary tag name for the owner of these resources
+
+  StackName:
+    Type: String
+    Description: The name of the stack to which these resources belong
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [ prod, stage, dev, qa ]
+    Description: Environment name to append to resources names and tags
+
+Conditions:
+
+  CreateNatGateway: !Equals [ !Ref SetNatGateway, true ]
+
+  RedundantNatGateway: !And [ !Condition CreateNatGateway, !Equals [ !Ref NatGatewayHA, true ] ]
+
+Resources:
+
+  # ############## Network #############
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      InstanceTenancy: default
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnet1Cidr
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-public-subnet-1
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnet2Cidr
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-public-subnet-2
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  PublicSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnet3Cidr
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-public-subnet-3
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnet1Cidr
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-private-subnet-1
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnet2Cidr
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-private-subnet-2
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  PrivateSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnet3Cidr
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-private-subnet-3
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  # ############## Routing #############
+
+  IGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-igw
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  IGWAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref IGW
+      VpcId: !Ref VPC    
+
+  PublicRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-public-rt
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+  
+  PrivateRT1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-private-rt-1
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  PrivateRT2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-private-rt-2
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  PrivateRT3:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-private-rt-3
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  RouteToIGW:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref PublicRT
+      GatewayId: !Ref IGW
+
+  PublicSubnet1RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PublicRT
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PublicRT
+      SubnetId: !Ref PublicSubnet2
+
+  PublicSubnet3RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PublicRT
+      SubnetId: !Ref PublicSubnet3
+
+  PrivateSubnet1RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PrivateRT1
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateSubnet2RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PrivateRT2
+      SubnetId: !Ref PrivateSubnet2
+
+  PrivateSubnet3RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PrivateRT3
+      SubnetId: !Ref PrivateSubnet3
+
+  # ################ NAT ###############
+
+  NatGatewayEIP1:
+    Type: AWS::EC2::EIP
+    Condition: CreateNatGateway
+    Properties:
+      Domain: vpc
+
+  NatGatewayEIP2:
+    Type: AWS::EC2::EIP
+    Condition: RedundantNatGateway
+    Properties:
+      Domain: vpc
+
+  NatGatewayEIP3:
+    Type: AWS::EC2::EIP
+    Condition: RedundantNatGateway
+    Properties:
+      Domain: vpc
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Condition: CreateNatGateway
+    Properties: 
+      AllocationId: !GetAtt NatGatewayEIP1.AllocationId
+      SubnetId: !Ref PublicSubnet3
+      Tags: 
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-nat-1
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Condition: RedundantNatGateway
+    Properties: 
+      AllocationId: !GetAtt NatGatewayEIP2.AllocationId
+      SubnetId: !Ref PublicSubnet2
+      Tags: 
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-nat-2
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  NatGateway3:
+    Type: AWS::EC2::NatGateway
+    Condition: RedundantNatGateway
+    Properties: 
+      AllocationId: !GetAtt NatGatewayEIP3.AllocationId
+      SubnetId: !Ref PublicSubnet3
+      Tags: 
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-nat-3
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  RouteToNAT1:
+    Type: AWS::EC2::Route
+    Condition: CreateNatGateway
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref PrivateRT1
+      NatGatewayId: !Ref NatGateway1
+
+  RouteToNAT2:
+    Type: AWS::EC2::Route
+    Condition: CreateNatGateway
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref PrivateRT2
+      NatGatewayId: !If [ RedundantNatGateway, !Ref NatGateway2, !Ref NatGateway1 ]
+
+  RouteToNAT3:
+    Type: AWS::EC2::Route
+    Condition: CreateNatGateway
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref PrivateRT3
+      NatGatewayId: !If [ RedundantNatGateway, !Ref NatGateway3, !Ref NatGateway1 ]
+
+  # ### Network Access Control Lists ###
+
+  ACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-acl
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  AllowAllInboundTrafic:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref ACL
+      CidrBlock: 0.0.0.0/0
+      RuleNumber: 10
+      RuleAction: Allow
+      Egress: false
+      Protocol: -1
+
+  AllowAllOutboundTrafic:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref ACL
+      CidrBlock: 0.0.0.0/0
+      RuleNumber: 10
+      RuleAction: Allow
+      Egress: true
+      Protocol: -1
+
+  PrivateSubnet1ACLAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      NetworkAclId: !Ref ACL
+
+  PrivateSubnet2ACLAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      NetworkAclId: !Ref ACL
+
+  PrivateSubnet3ACLAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet3
+      NetworkAclId: !Ref ACL
+
+Outputs:
+
+  VpcId:
+    Value: !Ref VPC
+    Export:
+      Name: !Sub ${StackName}:VPC
+
+  PublicSubnetIds:
+    Description: List of the public subnets ids
+    Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2, !Ref PublicSubnet3 ] ]
+    Export:
+      Name: !Sub ${StackName}:PublicSubnets
+
+  PrivateSubnetIds:
+    Description: List of the private subnets ids
+    Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2, !Ref PrivateSubnet3 ] ]
+    Export:
+      Name: !Sub ${StackName}:PrivateSubnets
+
+  PublicSubnet1Id:
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub ${StackName}:PublicSubnet1
+
+  PublicSubnet2Id:
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub ${StackName}:PublicSubnet2
+
+  PublicSubnet3Id:
+    Value: !Ref PublicSubnet3
+    Export:
+      Name: !Sub ${StackName}:PublicSubnet3
+
+  PrivateSubnet1Id:
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub ${StackName}:PrivateSubnet1
+
+  PrivateSubnet2Id:
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub ${StackName}:PrivateSubnet2
+
+  PrivateSubnet3Id:
+    Value: !Ref PrivateSubnet3
+    Export:
+      Name: !Sub ${StackName}:PrivateSubnet3
+   

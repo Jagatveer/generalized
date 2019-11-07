@@ -1,0 +1,178 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Web EFS
+
+Parameters:
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: white-whale
+    Description: Key pair that allow you to securely connect to your instance after it launches
+
+  BastionInstanceType:
+    Type: String
+    Default: t2.small
+    Description: EC2 instance type for the bastion host
+
+  WebInstanceType:
+    Type: String
+    Default: t2.small
+    Description: EC2 instance type for the web hosts
+
+  ImageId:
+    Type: AWS::EC2::Image::Id 
+    Description: AMI Id for the EC2 web hosts
+
+  S3BucketName:
+    Type: String
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
+    ConstraintDescription: Bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).
+    Description: S3 bucket where the templates are stored. The bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).
+
+  S3KeyPrefix:
+    Type: String
+    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    Description: S3 key prefix for the templates assets. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with a hyphen (-)
+
+  S3BucketRegion:
+    Type: String
+    Description: S3 bucket region where the templates are stored
+
+  OwnerName:
+    Type: String
+    Default: efabless
+    Description: An arbitrary tag name for the owner of these resources
+
+  StackName:
+    Type: String
+    Description: The name of the stack to which these resources belong
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [ prod, stage, dev, qa ]
+    Description: Environment name to append to resources names and tags
+
+
+
+# Conditions:
+
+Resources:
+
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/network.yml"
+      Parameters:
+        Identifier: white-whale
+        VpcCidr: 10.0.0.0/16
+        PublicSubnet1Cidr: 10.0.10.0/24
+        PublicSubnet2Cidr: 10.0.11.0/24
+        PublicSubnet3Cidr: 10.0.12.0/24
+        PrivateSubnet1Cidr: 10.0.20.0/24
+        PrivateSubnet2Cidr: 10.0.21.0/24
+        PrivateSubnet3Cidr: 10.0.22.0/24
+        SetNatGateway: true
+        NatGatewayHA: false
+        OwnerName: !Ref OwnerName
+        StackName: !Ref StackName
+        Environment: !Ref Environment
+
+  EFS:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/efs.yml"
+      Parameters:
+        VpcId: !GetAtt VPC.Outputs.VpcId
+        SubnetIds: !GetAtt VPC.Outputs.PrivateSubnetIds
+        FileSystemName: white-whale
+        EncryptEFS: false
+        SourceSecurityGroupId: ''
+        OwnerName: !Ref OwnerName
+        StackName: !Ref StackName
+        Environment: !Ref Environment
+
+  ALB:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/load-balancer.yml"
+      Parameters:
+        VpcId: !GetAtt VPC.Outputs.VpcId
+        SubnetIds: !GetAtt VPC.Outputs.PublicSubnetIds
+        CertificateArn: "" #!Ref CertificateArn
+        Identifier: white-whale
+        Scheme: internet-facing
+        OwnerName: !Ref OwnerName
+        StackName: !Ref StackName
+        Environment: !Ref Environment
+
+  BastionHost:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/bastion-host.yml"
+      Parameters:
+        VpcId: !GetAtt VPC.Outputs.VpcId
+        SubnetIds: !GetAtt VPC.Outputs.PublicSubnetIds
+        Identifier: white-whale
+        InstanceType: !Ref BastionInstanceType
+        ImageId: ami-04b9e92b5572fa0d1
+        KeyName: !Ref KeyName
+        # ####### EFS Mounts #######
+        EfsFileSystemDNS: !GetAtt EFS.Outputs.FileSystemDNS
+        EfsMountPath: /home
+        EfsMountSource: /
+        EfsSecurityGroupId: !GetAtt EFS.Outputs.SecurityGroupId
+        OwnerName: !Ref OwnerName
+        StackName: !Ref StackName
+        Environment: !Ref Environment
+
+  WebNode1:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/web-host.yml"
+      Parameters:
+        VpcId: !GetAtt VPC.Outputs.VpcId
+        SubnetId: !GetAtt VPC.Outputs.PrivateSubnet1
+        Identifier: web-node-1
+        InstanceType: !Ref InstanceType
+        ImageId: !Ref ImageId
+        KeyName: !Ref KeyName
+        SourceSecurityGroupId: !GetAtt ALB.Outputs.SecurityGroupId
+        BastionSecurityGroupId:
+        HttpListenerArn:
+        HttpsListenerArn:
+        # ####### EFS Mounts #######
+        EfsFileSystemDNS: !GetAtt EFS.Outputs.FileSystemDNS
+        EfsMountPath: /home
+        EfsMountSource: /
+        EfsSecurityGroupId: !GetAtt EFS.Outputs.SecurityGroupId
+        OwnerName: !Ref OwnerName
+        StackName: !Ref StackName
+        Environment: !Ref Environment
+
+  AuroraCluster:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${S3BucketName}/${S3KeyPrefix}/infrastructure/aurora.yml"
+      Parameters:
+        Identifier: ecomm-billing-aurora
+        VpcId: !GetAtt VPC.Outputs.VpcId
+        SubnetIds: !GetAtt VPC.Outputs.PrivateSubnetIds
+        SourceSecurityGroup: !Ref
+        DBSnapshot: ""
+        DBInstanceClass: !Ref DBInstanceClass
+        DBFamily: aurora-mysql5.7
+        DBEngine: aurora-mysql
+        DBEngineVersion: 5.7.12
+        DBPort: 3306
+        DBName: whitewhaledatabase
+        DBUser: admin
+        DBStorageEncrypted: true
+        PreferredBackupWindow: 17:00-19:00
+        PreferredMaintenanceWindow: Sun:19:00-Sun:23:00
+        BackupRetentionPeriod: !Ref BackupRetentionPeriod
+        OwnerName: !Ref OwnerName
+        StackName: !Ref StackName
+        Environment: !Ref Environment

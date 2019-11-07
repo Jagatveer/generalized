@@ -1,0 +1,42 @@
+[
+  {
+    "ParameterKey" : "KeyName",
+    "ParameterValue" : "ronaldo-nclouds-us-east-1" 
+  },
+  {
+    "ParameterKey" : "BastionInstanceType",
+    "ParameterValue" : "t2.micro" 
+  },
+  {
+    "ParameterKey" : "WebInstanceType",
+    "ParameterValue" : "t2.micro" 
+  },
+  {
+    "ParameterKey" : "ImageId",
+    "ParameterValue" : "ami-0c1e1174864a05ac6" 
+  },
+  {
+    "ParameterKey" : "S3BucketName",
+    "ParameterValue" : "ronaldo-nclouds" 
+  },
+  {
+    "ParameterKey" : "S3KeyPrefix",
+    "ParameterValue" : "white-whale/dev" 
+  },
+  {
+    "ParameterKey" : "S3BucketRegion",
+    "ParameterValue" : "us-east-1" 
+  },
+  {
+    "ParameterKey" : "OwnerName",
+    "ParameterValue" : "ronaldo@nclouds.com" 
+  },
+  {
+    "ParameterKey" : "Environment",
+    "ParameterValue" : "dev" 
+  },
+  {
+    "ParameterKey" : "StackName",
+    "ParameterValue" : "white-whale"
+  }
+]

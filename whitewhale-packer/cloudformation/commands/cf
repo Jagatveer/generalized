@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+
+export ROOT_DIR=`dirname "$(perl -e 'use Cwd "abs_path"; print abs_path(shift)' $0)"`
+CLI_ENTRYPOINT=`basename $0`
+
+. "$ROOT_DIR/utils"
+. "$ROOT_DIR/.env"
+
+usage () {
+  cat <<- HELP_USAGE
+
+	  usage: $(basename $0) (sync|create|update) [options]
+
+	    -e | --environment  The environment for the Stack [ dev, stage, qa, prod ]
+	HELP_USAGE
+}
+
+# ##################################  CLI  ##################################
+
+echo ""
+
+# Validate config variables
+if [[ -z $REGION ]] || [[ -z $STACK_NAME ]] || [[ -z $BUCKET_NAME ]]; then
+	>&2 echo -e "${COLOR_RED}Missing config values${COLOR_NORMAL}"
+	>&2 cat <<- END
+
+		Config:
+		  REGION: $REGION
+		  STACK_NAME: $STACK_NAME
+		  BUCKET_NAME: $BUCKET_NAME
+	END
+	exit 1
+fi
+
+# Get command
+command="$1"
+shift
+
+# Default parameters
+ENV=dev
+
+# Get parameters
+while [ "$1" != "" ]; do case $1 in
+	-e | --environment )
+		shift
+		ENV="$1"
+		;;
+	-h | --help )
+		usage
+		exit
+		;;
+	* )
+		>&2 echo -e "${COLOR_RED}Invalid parameter '$1'${COLOR_NORMAL}"
+		usage
+		exit 1
+esac; shift; done
+
+# Validate parameters
+if ! [[ "$ENV" =~ ^(dev|stage|qa|prod)$ ]]; then
+	>&2 echo -e "${COLOR_RED}Invalid environment $ENV${COLOR_NORMAL}"
+	exit 1
+fi; shift
+
+print_info () {
+	echo -e "${COLOR_CYAN}Stack: ${COLOR_BLUE}$STACK_NAME-$ENV${COLOR_CYAN}; Environment: ${COLOR_BLUE}$ENV${COLOR_CYAN}; Region: ${COLOR_BLUE}$REGION${COLOR_CYAN}; Bucket: ${COLOR_BLUE}$BUCKET_NAME${COLOR_CYAN}; Path: ${COLOR_BLUE}$STACK_NAME/$ENV${NORMAL}${COLOR_NORMAL}"
+}
+
+case $command in
+	sync )
+		print_info
+		aws s3 sync . "s3://$BUCKET_NAME/$STACK_NAME/$ENV" --exclude "*" --include "*.yml" --include "*.zip" --include "*.json" --acl bucket-owner-full-control
+		;;
+	create )
+		print_info
+		aws cloudformation create-stack \
+			--stack-name $STACK_NAME-$ENV \
+			--region $REGION \
+			--template-body "file://master.yml" \
+			--parameters="file://$ENV.json" \
+			--capabilities CAPABILITY_NAMED_IAM
+		;;
+	update )
+		print_info
+		aws cloudformation update-stack \
+			--stack-name $STACK_NAME-$ENV \
+			--region $REGION \
+			--template-body "file://master.yml" \
+			--parameters="file://$ENV.json" \
+			--capabilities CAPABILITY_NAMED_IAM
+		;;
+	help )
+		usage
+		;;
+	* )
+		>&2 echo -e "${COLOR_RED}Invalid command '$command'${COLOR_NORMAL}"
+		usage
+		exit 1
+esac

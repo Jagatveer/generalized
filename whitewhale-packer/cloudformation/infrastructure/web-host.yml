@@ -1,0 +1,297 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  This template launches an EC2 instance
+
+Parameters:
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC to host the ECS service
+
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet Id for the EC2 instance
+
+  Identifier:
+    Type: String
+    Description: An identifier name for the EC2 instance
+
+  InstanceType:
+    Type: String
+    Default: t2.micro
+    Description: Instance type for the EC2
+
+  ImageId:
+    Type: AWS::EC2::Image::Id 
+    Description: AMI Id for the EC2 web hosts
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Amazon EC2 Key Pair
+
+  SourceSecurityGroupId:
+    Type: String
+    Description: Security Group Id to allow traffic from
+    Default: ''
+
+  BastionSecurityGroupId:
+    Type: String
+    Description: Bastion Security Group Id to allow traffic from
+    Default: ''
+
+  HttpListenerArn:
+    Type: String
+    Description: Http listener for the Kong proxy
+
+  HttpsListenerArn:
+    Type: String
+    Default: ""
+    Description: Https listener for the Kong proxy
+
+  # ####### EFS Mounts #######
+
+  EfsFileSystemDNS:
+    Type: String
+    Default: ''
+    Description: Filesystem DNS for the EFS
+    
+  EfsMountPath:
+    Type: String
+    Default: /home
+    Description: Mount path for the EFS
+
+  EfsMountSource:
+    Type: String
+    Default: /
+    Description: Mount source directory for the EFS
+
+  EfsSecurityGroupId:
+    Type: String
+    Default: ''
+    Description: Security Group Id for the EFS
+
+  OwnerName:
+    Type: String
+    Default: efabless
+    Description: An arbitrary tag name for the owner of these resources
+
+  StackName:
+    Type: String
+    Description: The name of the stack to which these resources belong
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [ prod, stage, dev, qa ]
+    Description: Environment name to append to resources names and tags
+
+Conditions:
+
+  HttpsEnabled: !Not [ !Equals [ !Ref HttpsListenerArn, "" ] ]
+
+Resources:
+
+  # ############### Roles ##############
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      RoleName: !Sub ${Identifier}-${Environment}-ec2-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: 
+        - Effect: Allow
+          Principal: 
+            Service: 
+            - ec2.amazonaws.com
+          Action: 
+          - sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+      - !Ref InstanceRole
+
+  # ########## Security Groups #########
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Allow http and https traffic
+      SecurityGroupIngress: 
+      - { IpProtocol: 6, SourceSecurityGroupId: !Ref SourceSecurityGroupId, FromPort: 80, ToPort: 80 }
+      - { IpProtocol: 6, SourceSecurityGroupId: !Ref BastionSecurityGroupId, FromPort: 22, ToPort: 22 }
+      SecurityGroupEgress:
+      - { IpProtocol: -1, CidrIp: "0.0.0.0/0" }
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-ec2-sg
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  EFSRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref EfsSecurityGroupId
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref SecurityGroup
+      FromPort: 2049
+      ToPort: 2049
+
+  # ################ EC2 ###############
+
+  Instance:
+    DependsOn:
+    - EFSRule
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref ImageId
+      KeyName: !Ref KeyName
+      InstanceType: !Ref InstanceType
+      SecurityGroupIds: 
+      - !Ref SecurityGroup
+      IamInstanceProfile: !Ref InstanceProfile
+      SubnetId: !Ref SubnetId
+      Tags: 
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-web-node
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          # Install cfn-bootstrap
+          apt-get update -y
+          apt-get -y install python-pip
+          pip install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+
+          # Run SSM agent
+          sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+
+          sudo /usr/local/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource Instance
+          sudo /usr/local/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource Instance
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            apt:
+              nfs-common: []
+          files:
+            /etc/cfn/cfn-hup.conf:
+              mode: "000400"
+              owner: root
+              group: root
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.Instance.Metadata.AWS::CloudFormation::Init
+                action=/usr/local/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource Instance
+            /etc/systemd/system/cfn-hup.service:
+              content: !Sub |
+                [Unit]
+                Description=Cloud formation helper daemon
+
+                [Service]
+                ExecStart=/usr/local/bin/cfn-hup
+                Restart=always
+                Type=simple
+
+                [Install]
+                WantedBy=multi-user.target
+          commands:
+            01_enable_cfn_hup: 
+              command: !Sub |
+                systemctl enable cfn-hup.service
+            02_start_cfn_hup: 
+              command: !Sub |
+                systemctl start cfn-hup.service
+            03_mount_efs:
+              command: !Sub |
+                DIR_SRC=${EfsFileSystemDNS}
+                MNT_SRC=${EfsMountSource}
+                DIR_TGT=${EfsMountPath}
+                mkdir -p $DIR_TGT
+                mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport $DIR_SRC:$MNT_SRC $DIR_TGT
+                cp -p /etc/fstab /etc/fstab.back-$(date +%F)
+                echo -e "$DIR_SRC:$MNT_SRC      $DIR_TGT    nfs   defaults     0      0" | tee -a /etc/fstab
+
+  # ########## Load Balancing ##########
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      TargetType: instance
+      Port: 80
+      Protocol: HTTP
+      Name: !Sub ${Identifier}-${Environment}-tg
+      Matcher:
+        HttpCode: 200-299
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: 60
+
+  HttpListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpListenerArn
+      Priority: 2
+      Conditions:
+      - Field: path-pattern
+        Values: 
+        - /*
+      Actions:
+      # - RedirectConfig:
+      #     Port: 443
+      #     Protocol: HTTPS
+      #     StatusCode: HTTP_302
+      #   Type: redirect
+      - TargetGroupArn: !Ref TargetGroup
+        Type: forward
+ 
+  # Conditioned if Https is enabled
+  HttpsListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: HttpsEnabled
+    Properties:
+      ListenerArn: !Ref HttpsListenerArn
+      Priority: 2
+      Conditions:
+      - Field: path-pattern
+        Values: 
+        - /*
+      Actions:
+      - TargetGroupArn: !Ref TargetGroup
+        Type: forward
+
+Outputs:
+
+  SecurityGroupId:
+    Description: The Security Group of the EC2 instance
+    Value: !Ref SecurityGroup

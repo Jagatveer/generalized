@@ -1,0 +1,259 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Resources for an Auroar cluster database
+
+Parameters:
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC id that hosts the DB instance
+
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnet ids for the RDS instances
+
+  SourceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Allow ingress from this security group
+    ConstraintDescription: Please provide valid ids for the security group
+
+  Identifier:
+    Type: String
+    Description: A name for the DB instance
+
+  DBName:
+    Type: String
+    Description: The name of the DB instance that was provided at the time of creation, if one was specified. This same name is returned for the life of the DB instance
+    MinLength: 1
+    MaxLength: 64
+
+  DBUsername:
+    Type: String
+    Description: The ParameterStore path for the master user name for the DB instance
+
+  DBSnapshot:
+    Type: String
+    Default: ""
+    Description: Snapshot id to restore the database
+
+  DBInstanceClass:
+    Type: String
+    Default: db.t2.small
+    Description: The name of the compute and memory capacity classes of the DB instance    
+
+  DBFamily:
+    Type: String
+    Description: Family for the database parameter group. It must corresponde to the database engine version
+
+  DBEngine:
+    Type: String
+    Description: The database engine for the RDS
+    AllowedValues: [ aurora, aurora-mysql, aurora-postgresql ]
+
+  DBEngineVersion:
+    Type: String
+    Description: The database engine version
+
+  DBPort:
+    Type: Number
+    Description: The port number for the Database engine
+
+  DBStorageEncrypted:
+    Type: String
+    Default: False
+    Description: Wheter the database storage is encrypted or not
+    AllowedValues:
+    - true
+    - false
+
+  PreferredBackupWindow:
+    Description: Enter Preferred Backup Window Time (UTC).
+    Type: String
+    Default: 17:00-19:00
+
+  PreferredMaintenanceWindow:
+    Description: Enter Preferred Maintenance Window Time (UTC).
+    Type: String
+    Default: Sun:19:00-Sun:23:00
+
+  BackupRetentionPeriod:
+    Type: Number
+    Default: 5
+    Description: How many days to keep the backup
+
+  OwnerName:
+    Type: String
+    Default: nclouds
+    Description: An arbitrary tag name for the owner of these resources
+
+  StackName:
+    Type: String
+    Description: The name of the stack to which these resources belong
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [ prod, stage, dev, qa ]
+    Description: Environment name to append to resources names and tags
+
+
+Conditions:
+
+  RestoreFromSnapshot: !Not [ !Equals [ !Ref DBSnapshot, "" ] ]
+
+Resources:
+
+  # ########## Security Groups ##########
+
+  DBClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${Identifier}-${Environment}
+      GroupDescription: Allow connections to the database port only from the source security group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+      - { IpProtocol: 6, SourceSecurityGroupId: !Ref SourceSecurityGroup, FromPort: !Ref DBPort, ToPort: !Ref DBPort }
+      # - { IpProtocol: 6, CidrIp: "10.1.0.0/16", FromPort: !Ref DBPort, ToPort: !Ref DBPort }
+      SecurityGroupEgress:
+      - { IpProtocol: -1, CidrIp: "0.0.0.0/0" }
+      Tags:
+        - Key: Name
+          Value: !Ref Identifier
+        - Key: Owner
+          Value: !Ref OwnerName
+        - Key: StackName
+          Value: !Ref StackName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ######### Database Cluster #########
+
+  DBClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties:
+      Description: !Sub Parameter Group for ${Identifier}-${Environment} - ${DBFamily} 
+      Family: !Ref DBFamily
+      Parameters:
+        character_set_server: utf8mb4
+        max_allowed_packet: 52428800
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-pg
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      SubnetIds: !Ref SubnetIds
+      DBSubnetGroupName: !Sub ${Identifier}-${Environment}-sbg
+      DBSubnetGroupDescription: !Sub ${Identifier} subnet group for ${Environment}
+
+  DBCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub Credentials secret for ${Identifier}-${Environment}
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username": "${DBUsername}"}'
+        GenerateStringKey: password
+        PasswordLength: 16
+        ExcludeCharacters: '\"@/\\'
+
+  SecretAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref DBCredentialsSecret
+      TargetId: !Ref DBCluster
+      TargetType: AWS::RDS::DBCluster
+        
+  DBCluster:
+    Type: AWS::RDS::DBCluster
+    DeletionPolicy: Snapshot
+    Properties:
+      DBClusterIdentifier: !Sub ${Identifier}-${Environment}
+      DatabaseName: !If [ RestoreFromSnapshot, !Ref 'AWS::NoValue', !Ref DBName ]
+      MasterUsername: !If [ RestoreFromSnapshot, !Ref 'AWS::NoValue', !Sub '{{resolve:secretsmanager:${DBCredentialsSecret}:SecretString:username}}' ]
+      MasterUserPassword: !If [ RestoreFromSnapshot, !Ref 'AWS::NoValue', !Sub '{{resolve:secretsmanager:${DBCredentialsSecret}:SecretString:password}}' ]
+      SnapshotIdentifier: !If [ RestoreFromSnapshot, !Ref DBSnapshot, !Ref 'AWS::NoValue' ]
+      Engine: !Ref DBEngine
+      StorageEncrypted: !Ref DBStorageEncrypted
+      VpcSecurityGroupIds:
+      - !Ref DBClusterSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBClusterParameterGroupName: !Ref DBClusterParameterGroup
+      BackupRetentionPeriod: !Ref BackupRetentionPeriod
+      PreferredBackupWindow: !Ref PreferredBackupWindow
+      PreferredMaintenanceWindow: !Ref PreferredMaintenanceWindow
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}-aurora
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  DBAurora:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref DBCluster
+      Engine: !Ref DBEngine
+      DBInstanceClass: !Ref DBInstanceClass
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBInstanceIdentifier: !Sub ${Identifier}-${Environment}-primary
+      DeleteAutomatedBackups: False
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+  DBReplica:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: !Ref DBEngine
+      DBClusterIdentifier: !Ref DBCluster
+      DBInstanceClass: !Ref DBInstanceClass
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBInstanceIdentifier: !Sub ${Identifier}-${Environment}-replica
+      Tags:
+      - Key: Name
+        Value: !Sub ${Identifier}-${Environment}
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: StackName
+        Value: !Ref StackName
+      - Key: Environment
+        Value: !Ref Environment
+
+Outputs:
+
+  DBEndpoint:
+    Description: Primary endpoint address
+    Value: !GetAtt DBCluster.Endpoint.Address
+
+  DBReadEndpoint:
+    Description: Read endpoint address
+    Value: !GetAtt DBCluster.ReadEndpoint.Address
+
+  DBPort:
+    Description: Database endpoint port number
+    Value: !GetAtt DBAurora.Endpoint.Port
+
+  DBName:
+    Description: Default database name
+    Value: !Ref DBName
+
+  StackName:
+    Description: The stack name for this stack
+    Value: !Ref AWS::StackName
