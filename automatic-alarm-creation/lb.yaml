@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  ASG Rule and Permission
+  Author: Shariq Rizvi
+Parameters:
+  LambdaFunction:
+    Type: String
+    Description: Lambda function Name
+  StackName:
+    Type: String
+    Description: The name of the stack to which these resources belong
+Resources:
+  LambdaScheduleLB: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "EventRule"
+      Name: !Sub ${StackName}-LB-Rule
+      EventPattern:
+        source: 
+          - "aws.elasticloadbalancing"
+        detail-type: 
+          - "AWS API Call via CloudTrail"
+        detail: 
+          eventSource: 
+            - "elasticloadbalancing.amazonaws.com"
+          eventName: 
+            - "CreateLoadBalancer"
+      State: "ENABLED"
+      Targets:
+        - Arn: !Sub ${LambdaFunction}
+          Id: LambdaSchedule
+  LambdaSchedulePermissionLB:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Sub ${LambdaFunction}
+      Principal: 'events.amazonaws.com'
+      SourceArn: !Sub ${LambdaScheduleLB.Arn}

@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Life Cycle for zero downtime ECS"
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Stack"
+        Parameters:
+          - StackName
+Parameters:
+  StackName:
+    Type: String
+    Default: stack
+    Description: "This name will be used to named the resources"
+  S3BucketName:
+    Type: String
+    Default: ""
+    Description: "Name of the S3 Bucket"
+  S3KeyPrefix:
+    Type: String
+    Default: ""
+    Description: "Location of the Lambda code example: compute/index.zip"
+  SNSTopicARN:
+    Type: String
+    Default: ""
+    Description: "Topic ARN" 
+
+Resources:
+  TriggerLambda:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+        TemplateURL: !Sub "https://${S3BucketName}.s3.amazonaws.com/${S3KeyPrefix}/lambda/triggercloudwatch.yaml"
+        Parameters:
+          StackName: !Ref StackName
+          S3BucketName: !Ref S3BucketName
+          S3Key: !Sub "${S3KeyPrefix}/lambda/index.zip"   
+          ASGTemplateURL: !Sub "https://${S3BucketName}.s3-${AWS::Region}.amazonaws.com/${S3KeyPrefix}/sample-cloudwatch-alarm-cf/asg-cloudwatch.yaml"  
+          EC2TemplateURL: !Sub "https://${S3BucketName}.s3-${AWS::Region}.amazonaws.com/${S3KeyPrefix}/sample-cloudwatch-alarm-cf/ec2-cloudwatch.yaml"
+          LBTemplateURL: !Sub "https://${S3BucketName}.s3-${AWS::Region}.amazonaws.com/${S3KeyPrefix}/sample-cloudwatch-alarm-cf/loadbalancer-cloudwatch.yaml"
+          SNSTopicARN: !Ref SNSTopicARN
+
+  ASG:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+        TemplateURL: !Sub "https://${S3BucketName}.s3.amazonaws.com/${S3KeyPrefix}/asg.yaml"
+        Parameters:
+          LambdaFunction: !GetAtt TriggerLambda.Outputs.TriggerFunctionARN
+          StackName: !Ref StackName
+
+  EC2:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+        TemplateURL: !Sub "https://${S3BucketName}.s3.amazonaws.com/${S3KeyPrefix}/ec2.yaml"
+        Parameters:
+          LambdaFunction: !GetAtt TriggerLambda.Outputs.TriggerFunctionARN
+          StackName: !Ref StackName
+  
+  LB:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+        TemplateURL: !Sub "https://${S3BucketName}.s3.amazonaws.com/${S3KeyPrefix}/lb.yaml"
+        Parameters:
+          LambdaFunction: !GetAtt TriggerLambda.Outputs.TriggerFunctionARN
+          StackName: !Ref StackName

@@ -1,0 +1,27 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Loadbalancer cloudwatch alarms'
+Parameters:
+  ParameterResourceType:
+    Description: 'Full Name of Loadbalancer.'
+    Type: String
+  StackAlarmTopic:
+    Description: 'Name Alarm Topic'
+    Type: String
+
+Resources:
+  HTTPCodeELB5XXTooHighAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: 'Application load balancer returns 5XX HTTP status codes'
+      Namespace: 'AWS/ApplicationELB'
+      MetricName: HTTPCode_ELB_5XX_Count
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 50
+      AlarmActions:
+      - Ref: StackAlarmTopic
+      Dimensions:
+      - Name: LoadBalancer
+        Value: !Ref ParameterResourceType

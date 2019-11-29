@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EC2 cloudwatch alarms'
+Parameters:
+  ParameterResourceType:
+    Description: 'Instance Id of EC2'
+    Type: String
+  StackAlarmTopic:
+    Description: 'Name Alarm Topic'
+    Type: String
+
+Resources:
+  Ec2InstanceAutorecoverAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 'Group MaxSize'
+      AlarmName: !Sub "${AWS::StackName}-AutoScalingTooHighAlarm"
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed_System
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref ParameterResourceType
+      EvaluationPeriods: 2
+      Period: 60
+      Statistic: Minimum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      AlarmActions:
+        - Ref: StackAlarmTopic
