@@ -32,6 +32,10 @@ Parameters:
     Type: String
     Default: ""
     Description: "Template URL"
+  RDSTemplate:
+    Type: String
+    Default: ""
+    Description: "Template URL"
   SNSTopicARN:
     Type: String
     Default: ""
@@ -53,6 +57,7 @@ Resources:
           ASGTemplate: !Ref ASGTemplateURL
           EC2Template: !Ref EC2TemplateURL
           LBTemplate: !Ref LBTemplateURL
+          RDSTemplate: !Ref RDSTemplate
           SNSTopic: !Ref SNSTopicARN
 
   LambdaRole:

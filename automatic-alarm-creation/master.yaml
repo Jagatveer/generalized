@@ -37,6 +37,7 @@ Resources:
           ASGTemplateURL: !Sub "https://${S3BucketName}.s3-${AWS::Region}.amazonaws.com/${S3KeyPrefix}/sample-cloudwatch-alarm-cf/asg-cloudwatch.yaml"  
           EC2TemplateURL: !Sub "https://${S3BucketName}.s3-${AWS::Region}.amazonaws.com/${S3KeyPrefix}/sample-cloudwatch-alarm-cf/ec2-cloudwatch.yaml"
           LBTemplateURL: !Sub "https://${S3BucketName}.s3-${AWS::Region}.amazonaws.com/${S3KeyPrefix}/sample-cloudwatch-alarm-cf/loadbalancer-cloudwatch.yaml"
+          RDSTemplate: !Sub "https://${S3BucketName}.s3-${AWS::Region}.amazonaws.com/${S3KeyPrefix}/sample-cloudwatch-alarm-cf/rds-cloudwatch.yaml"
           SNSTopicARN: !Ref SNSTopicARN
 
   ASG:
@@ -59,6 +60,14 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
         TemplateURL: !Sub "https://${S3BucketName}.s3.amazonaws.com/${S3KeyPrefix}/lb.yaml"
+        Parameters:
+          LambdaFunction: !GetAtt TriggerLambda.Outputs.TriggerFunctionARN
+          StackName: !Ref StackName
+  
+  RDS:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+        TemplateURL: !Sub "https://${S3BucketName}.s3.amazonaws.com/${S3KeyPrefix}/rds.yaml"
         Parameters:
           LambdaFunction: !GetAtt TriggerLambda.Outputs.TriggerFunctionARN
           StackName: !Ref StackName

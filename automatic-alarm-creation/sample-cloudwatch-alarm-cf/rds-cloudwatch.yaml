@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EC2 cloudwatch alarms'
+Parameters:
+  ParameterResourceType:
+    Description: 'Instance Identidier of RDS'
+    Type: String
+  StackAlarmTopic:
+    Description: 'Name Alarm Topic'
+    Type: String
+
+Resources:
+  RDSFreeStorageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 'RDS Free Storage Alarm'
+      ComparisonOperator: LessThanThreshold
+      DatapointsToAlarm: 1
+      EvaluationPeriods: 1
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Period: 60
+      Statistic: Average
+      Threshold: 2147483648
+      TreatMissingData: ignore
+      Unit: Bytes
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: !Ref ParameterResourceType
+      AlarmActions:
+        - Ref: StackAlarmTopic

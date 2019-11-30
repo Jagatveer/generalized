@@ -16,6 +16,9 @@ def lambda_handler(event, context):
     if "state" in event["detail"]  and event["detail"]["state"] == "running" and event["detail-type"] == "EC2 Instance State-change Notification":
         event_name=event["detail"]["instance-id"]
         create_stack('EC2-CloudWatchEventStack' + str(randint(100000, 999999)), os.environ['EC2Template'], event_name)
+    if "eventName" in event["detail"] and event["detail"]["eventName"] == "CreateDBInstance":
+        event_name=event["detail"]["requestParameters"]["dBInstanceIdentifier"]
+        create_stack('RDS-CloudWatchEventStack' + str(randint(100000, 999999)), os.environ['RDSTemplate'], event_name)
 
 def create_stack(stack_name, template_url, event_name):
     try:

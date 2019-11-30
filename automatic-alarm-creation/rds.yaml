@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  ASG Rule and Permission
+  Author: Shariq Rizvi
+Parameters:
+  LambdaFunction:
+    Type: String
+    Description: Lambda function Name
+  StackName:
+    Type: String
+    Description: The name of the stack to which these resources belong
+Resources:
+  LambdaScheduleRDS: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "EventRule"
+      Name: !Sub ${StackName}-RDS-Rule
+      EventPattern:
+        source: 
+          - "aws.rds"
+        detail-type: 
+          - "AWS API Call via CloudTrail"
+        detail: 
+          eventSource: 
+            - "rds.amazonaws.com"
+          eventName: 
+            - "CreateDBInstance"
+      State: "ENABLED"
+      Targets:
+        - Arn: !Sub ${LambdaFunction}
+          Id: LambdaSchedule
+  LambdaSchedulePermissionRDS:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Sub ${LambdaFunction}
+      Principal: 'events.amazonaws.com'
+      SourceArn: !Sub ${LambdaScheduleRDS.Arn}
