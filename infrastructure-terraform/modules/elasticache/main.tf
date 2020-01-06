@@ -1,5 +1,5 @@
 resource "aws_security_group" "redis" {
-  name   = "${var.service_name}-${var.environment}-redis-sg"
+  name   = var.cluster_name
   vpc_id = var.vpc_id
   description = "Redis security group"
   ingress {
@@ -19,12 +19,12 @@ resource "aws_security_group" "redis" {
 }
 
 resource "aws_elasticache_subnet_group" "default" {
-  name        = "${var.service_name}-${var.environment}-redis-subnetgroup"
+  name        = var.cluster_name
   subnet_ids  = var.private_subnet_ids
 }
 
 resource "aws_elasticache_cluster" "redis" {
-  cluster_id           = "${var.service_name}-${var.environment}"
+  cluster_id           = var.cluster_name
   engine               = "redis"
   engine_version       = var.elasticache_engine_version
   maintenance_window   = var.maintenance_window
