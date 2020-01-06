@@ -22,6 +22,7 @@ The Terraform code is divided into several directories:
 * `ecs-delayjob`: Creates three ECS Services inside ECS cluster without auto scaling nor cloudwatch alarms.
 * `ecs-service`: Creates a ECS Service inside ECS cluster with autoscaling and cloudwatch alarms.
 * `elasticache`: Creates a elasticache service for Redis.
+* `elastisearch`: Creates a elasticsearch service on AWS.
 * `network`: Has the VPC and subnets creation.
 * `rds`: It is used to create the postgres databases.
 * `ssm`: Creates and encrypts the generated secrets (RDS and Redis endpoints).
