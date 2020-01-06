@@ -5,7 +5,7 @@ variable "environment" {
   default = ""
 }
 variable "private_subnet_ids" {
-  type    = "list"
+  type    = list
 }
 variable "elasticache_engine_version" {
   default = ""
